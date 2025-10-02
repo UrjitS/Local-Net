@@ -1,0 +1,6 @@
+#ifndef LOCALNET_PROTOCOL_H
+#define LOCALNET_PROTOCOL_H
+
+
+
+#endif
