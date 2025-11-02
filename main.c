@@ -5,7 +5,7 @@
 #include "routing.h"
 
 int main(int argc, char * argv[]) {
-    printf("Hello\n");
+    printf("%lu", sizeof(struct header));
 
     return EXIT_SUCCESS;
 }
