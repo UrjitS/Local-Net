@@ -18,10 +18,18 @@ add_executable(LocalNet
         utils/utils.h
 )
 
-# Add a test binary for protocol unit tests
+# Test binary for protocol unit tests
 add_executable(protocol_tests
         protocol/protocol.c
         tests/test_protocol.c
 )
 
 target_include_directories(protocol_tests PRIVATE ${CMAKE_SOURCE_DIR}/protocol)
+
+# Test binary for routing unit tests
+add_executable(routing_tests
+        routing/routing.c
+        tests/test_routing.c
+)
+
+target_include_directories(routing_tests PRIVATE ${CMAKE_SOURCE_DIR}/routing)

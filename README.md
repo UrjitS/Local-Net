@@ -15,22 +15,22 @@ The filestructure for the project looks like the following:
 ├── CMakeLists.txt                 
 ├── README.md
 ├── encryption/
-    ├── encryption.c
-    └── encryption.h
+│   ├── encryption.c
+│   └── encryption.h
 ├── protocol/
-    ├── protocol.c
-    └── protocol.h
+│   ├── protocol.c
+│   └── protocol.h
 ├── routing/
-    ├── routing.c
-    └── routing.h
+│   ├── routing.c
+│   └── routing.h
 ├── tests/
-    └── test_protocol.c
+│   ├── test_protocol.c
+│   └── test_routing.c
 ├── utils/
-    ├── utils.c
-    └── utils.h
+│   ├── utils.c
+│   └── utils.h
 └── LICENSE
 ```
-
 
 ## Building
 The following prerequisite is required:
@@ -43,7 +43,7 @@ To build the application use the following commands:
 cd Local-Net/
 mkdir build && cd build/
 cmake ..
-make
+make all
 ```
 
 ## How to Run
@@ -51,4 +51,8 @@ make
 To run the program use the command ```./LocalNet```
 
 ### Running the Test Cases
-To run the test cases use the command ```./protocol_tests```
+#### Running Protocol Implementation Test Cases
+To run the protocol implementation test cases use the command ```./protocol_tests```
+
+#### Running Routing Implementation Test Cases
+To run the routing implementation test cases use the command ```./routing_tests```
