@@ -358,6 +358,8 @@ static void on_connection_state_changed(Device * device, ConnectionState state, 
 
     switch (state) {
         case BINC_CONNECTED:
+            start_advertising();
+            start_discovery();
             break;
         case BINC_DISCONNECTED:
             if (tracked) {
@@ -370,14 +372,14 @@ static void on_connection_state_changed(Device * device, ConnectionState state, 
                 }
             }
 
-            // Remove device from BlueZ cache to allow fresh discovery 
+            // Remove device from BlueZ cache to allow fresh discovery
             if (binc_device_get_bonding_state(device) != BINC_BONDED) {
                 binc_adapter_remove_device(g_manager->adapter, device);
             }
 
             // Restart advertising and discovery after disconnection
             log_debug(BT_TAG, "Restarting advertising and discovery after disconnection");
-            // start_advertising();
+            start_advertising();
             start_discovery();
             break;
         case BINC_CONNECTING:
