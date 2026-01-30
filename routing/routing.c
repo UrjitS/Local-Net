@@ -1,17 +1,9 @@
 #include "routing.h"
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
+#include "utils.h"
 #include <stdio.h>
 
-/* Utility Functions */
-uint32_t get_current_timestamp(void) {
-    return (uint32_t)time(NULL);
-}
-
-uint32_t generate_request_id(void) {
-    return (uint32_t)rand(); // NOLINT(cert-msc30-c, cert-msc50-cpp)
-}
 
 uint8_t get_max_connections(const enum NODE_TYPE node_type) {
     switch (node_type) {
@@ -447,6 +439,40 @@ void check_heartbeat_timeouts(struct mesh_node *node, const uint32_t current_tim
             }
         }
     }
+}
+
+size_t check_and_get_heartbeat_timeouts(struct mesh_node *node, const uint32_t current_time,
+                                         uint32_t *timed_out_ids, size_t max_count) {
+    if (!node || !node->connection_table || !timed_out_ids || max_count == 0) return 0;
+
+    size_t timeout_count = 0;
+
+    for (size_t i = 0; i < node->connection_table->count; i++) {
+        struct connection_entry *entry = &node->connection_table->entries[i];
+
+        /* Check all connected states (STABLE and CONNECTING) */
+        if (entry->state == STABLE || entry->state == CONNECTING) {
+            const uint32_t time_since_seen = current_time - entry->last_seen;
+
+            /* Check if we should increment missed heartbeats */
+            const uint32_t expected_heartbeats = time_since_seen / HEARTBEAT_INTERVAL_SECONDS;
+            if (expected_heartbeats > 0 && (uint32_t)entry->missed_heartbeats < expected_heartbeats) {
+                entry->missed_heartbeats = (uint8_t)expected_heartbeats;
+
+                if (entry->missed_heartbeats >= HEARTBEAT_MISSED_THRESHOLD) {
+                    entry->state = DISCONNECTED;
+
+                    /* Add to output list if we have room */
+                    if (timeout_count < max_count) {
+                        timed_out_ids[timeout_count] = entry->neighbor_id;
+                        timeout_count++;
+                    }
+                }
+            }
+        }
+    }
+
+    return timeout_count;
 }
 
 /* Route Discovery Functions */

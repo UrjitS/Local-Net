@@ -28,7 +28,7 @@ enum CONNECTION_STATE {
 #define MAX_PENDING_ROUTE_REQUESTS 50
 #define ROUTE_EXPIRY_SECONDS 500
 #define CONNECTION_TIMEOUT_SECONDS 60
-#define HEARTBEAT_INTERVAL_SECONDS 30
+#define HEARTBEAT_INTERVAL_SECONDS 10
 #define HEARTBEAT_MISSED_THRESHOLD 3
 #define DISCOVERY_INITIAL_INTERVAL 30
 #define DISCOVERY_LONG_INTERVAL 300
@@ -140,6 +140,12 @@ void increment_missed_heartbeat(struct connection_table *table, uint32_t neighbo
 void reset_missed_heartbeats(struct connection_table *table, uint32_t neighbor_id);
 void check_heartbeat_timeouts(struct mesh_node *node, uint32_t current_time);
 
+/* Check for heartbeat timeouts and return list of timed-out node IDs
+ * Returns number of timed-out nodes, fills timed_out_ids array (max max_count entries)
+ * Also marks them as DISCONNECTED in the connection table */
+size_t check_and_get_heartbeat_timeouts(struct mesh_node *node, uint32_t current_time,
+                                         uint32_t *timed_out_ids, size_t max_count);
+
 /* Route Discovery Functions */
 int initiate_route_discovery(struct mesh_node *node, uint32_t destination_id,
                               uint32_t **reverse_path_out, uint8_t *path_len_out);
@@ -155,8 +161,6 @@ int forward_packet(struct mesh_node *node, uint32_t destination_id, uint8_t *ttl
 int should_process_locally(struct mesh_node *node, uint32_t destination_id);
 
 /* Utility Functions */
-uint32_t get_current_timestamp(void);
-uint32_t generate_request_id(void);
 void free_connection_table(struct connection_table *table);
 void free_mesh_node(struct mesh_node *node);
 void free_routing_table(struct routing_table *table);
