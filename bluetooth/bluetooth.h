@@ -51,7 +51,6 @@ typedef struct ble_node_manager {
     uint32_t device_id;
     char local_name[MAX_NAME_SIZE];
 
-    // Tracked devices
     tracked_device_t *discovered_devices;
     guint discovered_count;
 
@@ -66,7 +65,7 @@ typedef struct ble_node_manager {
 } ble_node_manager_t;
 
 // Initialization and cleanup
-ble_node_manager_t *ble_init(struct mesh_node *mesh_node, uint32_t device_id, ble_discovered_callback discovered_cb, ble_connected_callback connected_cb, ble_disconnected_callback disconnected_cb, ble_data_callback data_cb);
+ble_node_manager_t * ble_init(struct mesh_node *mesh_node, uint32_t device_id, ble_discovered_callback discovered_cb, ble_connected_callback connected_cb, ble_disconnected_callback disconnected_cb, ble_data_callback data_cb);
 gboolean ble_start(ble_node_manager_t *manager);
 void ble_stop(ble_node_manager_t *manager);
 void ble_cleanup(ble_node_manager_t *manager);
@@ -83,5 +82,52 @@ gboolean ble_broadcast_data(ble_node_manager_t *manager, const uint8_t *data, si
 guint ble_get_connected_count(ble_node_manager_t *manager);
 void ble_get_connection_table(ble_node_manager_t *manager, uint32_t *devices, guint *count, guint max_count);
 void ble_print_connection_table(ble_node_manager_t *manager);
+
+// Get mesh node for routing table access
+struct mesh_node *ble_get_mesh_node(ble_node_manager_t *manager);
+
+// Route discovery callbacks
+typedef void (*ble_route_found_callback)(uint32_t destination_id, uint32_t next_hop, uint8_t hop_count);
+typedef void (*ble_route_failed_callback)(uint32_t destination_id);
+
+/**
+ * Initiate route discovery for a destination
+ * Returns request_id on success, 0 on failure
+ */
+uint32_t ble_initiate_route_discovery(ble_node_manager_t *manager, uint32_t destination_id);
+
+/**
+ * Send a route request to all connected neighbors
+ */
+gboolean ble_broadcast_route_request(ble_node_manager_t *manager, uint32_t request_id,
+                                     uint32_t destination_id, uint8_t hop_count,
+                                     const uint32_t *reverse_path, uint8_t reverse_path_len,
+                                     uint32_t exclude_id);
+
+/**
+ * Send a route reply to a specific neighbor
+ */
+gboolean ble_send_route_reply(ble_node_manager_t *manager, uint32_t target_id,
+                              uint32_t request_id, uint8_t route_cost,
+                              const uint32_t *forward_path, uint8_t forward_path_len);
+
+/**
+ * Send a data message to a destination node
+ * If no route exists, initiates route discovery and queues the message
+ * Returns the sequence number on success, 0 on failure
+ */
+uint16_t ble_send_message(ble_node_manager_t *manager, uint32_t destination_id,
+                          const uint8_t *payload, size_t payload_len);
+
+/**
+ * Send queued packets for a destination after route discovery completes
+ */
+void ble_send_queued_packets(ble_node_manager_t *manager, uint32_t destination_id);
+
+/**
+ * Process retransmission timeouts
+ * Should be called periodically (e.g., from heartbeat timer)
+ */
+void ble_process_retransmissions(ble_node_manager_t *manager);
 
 #endif // LOCALNET_BLUETOOTH_H

@@ -10,20 +10,18 @@ https://people.csail.mit.edu/albert/bluez-intro/index.html
 
 ## File Structure
 ```
+The filestructure for the project looks like the following: 
 ├── .gitignore               
 ├── CMakeLists.txt                 
 ├── README.md
 ├── encryption/
 │   ├── encryption.c
 │   └── encryption.h
-├── bluetooth/
-│   ├── bluetooth.c           # Handles Bluetooth Adapter Communications
-│   └── bluetooth.h
 ├── protocol/
-│   ├── protocol.c            # Protocol serialization/deserialization
+│   ├── protocol.c
 │   └── protocol.h
 ├── routing/
-│   ├── routing.c             # Routing tables, route discovery, forwarding
+│   ├── routing.c
 │   └── routing.h
 ├── tests/
 │   ├── test_protocol.c

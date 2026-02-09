@@ -8,34 +8,40 @@
 #include "bluetooth/bluetooth.h"
 #include "protocol/protocol.h"
 #include "routing/routing.h"
+#include "utils/utils.h"
 #include "logger.h"
 
 #define TAG "LOCALNET"
 
-// Global BLE manager for signal handler
 static ble_node_manager_t * g_ble_manager = NULL;
 static volatile gboolean g_running = TRUE;
 static uint32_t g_device_id = 0;
 
-// Command handler function type
 typedef void (*menu_command_handler)(void);
 
 typedef struct {
-    const char *key;
-    const char *description;
+    const char * key;
+    const char * description;
     menu_command_handler handler;
 } menu_command_t;
 
 // Command handlers
 static void cmd_show_connections(void);
 static void cmd_show_node_info(void);
+static void cmd_show_routes(void);
+static void cmd_discover_route(void);
+static void cmd_send_message(void);
+static void cmd_show_pending_packets(void);
 static void cmd_show_help(void);
 static void cmd_quit(void);
 
-// Menu
 static const menu_command_t g_menu_commands[] = {
     { "1", "Show connection table",     cmd_show_connections },
     { "2", "Show Node info",            cmd_show_node_info },
+    { "3", "Show routing table",        cmd_show_routes },
+    { "4", "Discover route to node",    cmd_discover_route },
+    { "5", "Send message to node",      cmd_send_message },
+    { "6", "Show pending packets",      cmd_show_pending_packets },
     { "h", "Show help",                 cmd_show_help },
     { "q", "Quit",                      cmd_quit },
     { NULL, NULL, NULL }
@@ -65,6 +71,198 @@ static void cmd_show_node_info(void) {
     printf("\n");
 }
 
+static void cmd_show_routes(void) {
+    if (!g_ble_manager) {
+        fprintf(stderr, "Error: BLE Manager not initialized\n");
+        return;
+    }
+
+    struct mesh_node * node = ble_get_mesh_node(g_ble_manager);
+    if (!node || !node->routing_table) {
+        fprintf(stderr, "Error: Routing table not available\n");
+        return;
+    }
+
+    printf("\n");
+    printf("--------------------------------------------------------------------\n");
+    printf("ROUTING TABLE\n");
+    printf("--------------------------------------------------------------------\n");
+    printf("\t %-12s %-12s %-6s %-8s %-8s\n", "Destination", "Next Hop", "Hops", "Cost", "Valid");
+    printf("--------------------------------------------------------------------\n");
+
+    const struct routing_table * rt = node->routing_table;
+    size_t valid_count = 0;
+
+    for (size_t i = 0; i < rt->count; i++) {
+        const struct routing_entry * entry = &rt->entries[i];
+        if (entry->destination_id == 0) continue;
+
+        const char * valid_str = entry->is_valid ? "Yes" : "No";
+        printf("\t 0x%08X   0x%08X   %-6u %-8.2f %-8s\n",
+               entry->destination_id,
+               entry->next_hop,
+               entry->hop_count,
+               entry->route_cost,
+               valid_str);
+
+        if (entry->is_valid) valid_count++;
+    }
+
+    if (rt->count == 0) {
+        printf("\t (no routes exist)\n");
+    }
+
+    printf("--------------------------------------------------------------------\n");
+    printf("\t Total: %zu routes (%zu valid)\n", rt->count, valid_count);
+    printf("--------------------------------------------------------------------\n");
+    printf("\n");
+}
+
+static void cmd_discover_route(void) {
+    if (!g_ble_manager) {
+        fprintf(stderr, "Error: BLE Manager not initialized\n");
+        return;
+    }
+
+    printf("Enter destination node ID (e.g., 0x12345678): ");
+    fflush(stdout);
+
+    char input[32];
+    if (read_stdin_line(input, sizeof(input)) != 0) {
+        fprintf(stderr, "Error reading input\n");
+        return;
+    }
+
+    uint32_t dest_id;
+    if (parse_node_id(input, &dest_id) != 0) {
+        fprintf(stderr, "Invalid node ID format. Use hex format like 0x12345678\n");
+        return;
+    }
+
+    if (validate_destination_id(dest_id, g_device_id) != 0) {
+        fprintf(stderr, "Invalid destination (cannot be 0 or self)\n");
+        return;
+    }
+
+    printf("Initiating route discovery for 0x%08X\n", dest_id);
+    const uint32_t request_id = ble_initiate_route_discovery(g_ble_manager, dest_id);
+
+    if (request_id > 0) {
+        printf("Route discovery initiated (request ID: 0x%08X)\n", request_id);
+    } else {
+        printf("Route discovery failed or route already exists.\n");
+    }
+}
+
+static void cmd_send_message(void) {
+    if (!g_ble_manager) {
+        fprintf(stderr, "Error: BLE Manager not initialized\n");
+        return;
+    }
+
+    printf("Enter destination node ID (e.g., 0x12345678): ");
+    fflush(stdout);
+
+    char input[256];
+    if (read_stdin_line(input, sizeof(input)) != 0) {
+        fprintf(stderr, "Error reading input\n");
+        return;
+    }
+
+    uint32_t dest_id;
+    if (parse_node_id(input, &dest_id) != 0) {
+        fprintf(stderr, "Invalid node ID format. Use hex format like 0x12345678\n");
+        return;
+    }
+
+    if (validate_destination_id(dest_id, g_device_id) != 0) {
+        fprintf(stderr, "Invalid destination (cannot be 0 or self)\n");
+        return;
+    }
+
+    printf("Enter message: ");
+    fflush(stdout);
+
+    char message[200];
+    if (read_stdin_line(message, sizeof(message)) != 0) {
+        fprintf(stderr, "Error reading message\n");
+        return;
+    }
+
+    if (strlen(message) == 0) {
+        fprintf(stderr, "Message cannot be empty\n");
+        return;
+    }
+
+    printf("Sending message to 0x%08X: \"%s\"\n", dest_id, message);
+
+    const uint16_t seq = ble_send_message(g_ble_manager, dest_id, (const uint8_t *)message, strlen(message));
+
+    if (seq > 0) {
+        printf("Message queued for transmission (sequence: %u)\n", seq);
+    } else {
+        printf("Failed to queue message.\n");
+    }
+}
+
+static void cmd_show_pending_packets(void) {
+    if (!g_ble_manager) {
+        fprintf(stderr, "Error: BLE Manager not initialized\n");
+        return;
+    }
+
+    struct mesh_node * node = ble_get_mesh_node(g_ble_manager);
+    if (!node || !node->packet_queue) {
+        fprintf(stderr, "Error: Packet queue not available\n");
+        return;
+    }
+
+    printf("\n");
+    printf("--------------------------------------------------------------------\n");
+    printf("PENDING PACKETS\n");
+    printf("--------------------------------------------------------------------\n");
+    printf("\t %-6s %-12s %-15s %-8s %-10s\n", "Seq", "Destination", "State", "Retries", "Interval");
+    printf("--------------------------------------------------------------------\n");
+
+    const struct pending_packet_queue * queue = node->packet_queue;
+    size_t pending_count = 0;
+
+    for (size_t i = 0; i < MAX_PENDING_PACKETS; i++) {
+        const struct pending_packet * pkt = &queue->packets[i];
+        if (pkt->state == PACKET_STATE_EMPTY) continue;
+
+        const char * state_str;
+        switch (pkt->state) {
+            case PACKET_STATE_AWAITING_ROUTE: state_str = "AWAITING_ROUTE"; break;
+            case PACKET_STATE_AWAITING_ACK: state_str = "AWAITING_ACK"; break;
+            case PACKET_STATE_DELIVERED: state_str = "DELIVERED"; break;
+            case PACKET_STATE_FAILED: state_str = "FAILED"; break;
+            default: state_str = "UNKNOWN"; break;
+        }
+
+        printf("\t %-6u 0x%08X   %-15s %-8u %-10u ms\n",
+               pkt->sequence_number,
+               pkt->destination_id,
+               state_str,
+               pkt->retry_count,
+               pkt->retry_interval_ms);
+
+        if (pkt->state == PACKET_STATE_AWAITING_ROUTE ||
+            pkt->state == PACKET_STATE_AWAITING_ACK) {
+            pending_count++;
+        }
+    }
+
+    if (queue->count == 0) {
+        printf("\t (no pending packets)\n");
+    }
+
+    printf("--------------------------------------------------------------------\n");
+    printf("\t Total: %zu pending, Next seq: %u\n", pending_count, queue->next_sequence_number);
+    printf("--------------------------------------------------------------------\n");
+    printf("\n");
+}
+
 static void cmd_show_help(void) {
     printf("\n");
     printf("--------------------------------------------------------------------\n");
@@ -88,7 +286,7 @@ static void cmd_quit(void) {
 }
 
 // Process Command input
-static void process_command(const char *input) {
+static void process_command(const char * input) {
     while (*input && isspace(*input)) input++;
 
     if (*input == '\0') return;
@@ -103,11 +301,11 @@ static void process_command(const char *input) {
     printf("Unknown command: '%s'. Press 'h' for help.\n", input);
 }
 
-static gboolean stdin_callback(GIOChannel *source, const GIOCondition condition, gpointer data) {
+static gboolean stdin_callback(GIOChannel * source, const GIOCondition condition, gpointer data) {
     if (condition & G_IO_IN) {
-        gchar *line = NULL;
+        gchar * line = NULL;
         gsize length;
-        GError *error = NULL;
+        GError * error = NULL;
 
         if (g_io_channel_read_line(source, &line, &length, NULL, &error) == G_IO_STATUS_NORMAL) {
             if (line) {
@@ -125,7 +323,7 @@ static gboolean stdin_callback(GIOChannel *source, const GIOCondition condition,
     return TRUE;
 }
 
-void usage(const char *program_name) {
+void usage(const char * program_name) {
     printf("--------------------------------------------------------------------\n");
     printf("LocalNet Mesh Node\n");
     printf("--------------------------------------------------------------------\n");
@@ -162,12 +360,28 @@ static void on_node_disconnected(const uint32_t node_id) {
     log_info(TAG, "Disconnected from Node: 0x%08X", node_id);
 
     if (g_ble_manager) {
+        const struct mesh_node * node = ble_get_mesh_node(g_ble_manager);
+        if (node) {
+            // Invalidate all routes that use this node
+            if (node->routing_table) {
+                const size_t invalidated = invalidate_routes_via_node(node->routing_table, node_id);
+                if (invalidated > 0) {
+                    log_info(TAG, "Invalidated %zu routes via disconnected node 0x%08X", invalidated, node_id);
+                }
+            }
+
+            // Remove from connection table
+            if (node->connection_table) {
+                remove_connection(node->connection_table, node_id);
+            }
+        }
+
         const guint connected = ble_get_connected_count(g_ble_manager);
         log_info(TAG, "Remaining connected Nodes: %d", connected);
     }
 }
 
-static void on_data_received(const uint32_t sender_id, const uint8_t *data, const size_t len) {
+static void on_data_received(const uint32_t sender_id, const uint8_t * data, const size_t len) {
     log_info(TAG, "Received %zu bytes from Node 0x%08X", len, sender_id);
 
     struct header hdr;
@@ -179,9 +393,47 @@ static void on_data_received(const uint32_t sender_id, const uint8_t *data, cons
             case MSG_HEARTBEAT:
                 log_info(TAG, "Received heartbeat from 0x%08X", sender_id);
                 break;
-            case MSG_DATA:
-                log_info(TAG, "Received data message");
+            case MSG_DATA: {
+                struct network net;
+                if (len >= 16 && parse_network(data + 8, len - 8, &net) == 0) {
+                    const size_t payload_offset = 16;
+                    const size_t payload_len = hdr.payload_length;
+
+                    if (payload_offset + payload_len <= len) {
+                        printf("\nMESSAGE FROM 0x%08X\n", net.source_id);
+                        printf("\tSequence: %u\n", hdr.sequence_number);
+                        printf("\tTTL: %u\n", hdr.time_to_live);
+                        printf("\tLength: %zu bytes\n", payload_len);
+
+                        // Print as string if printable, otherwise hex dump
+                        const uint8_t * payload = data + payload_offset;
+                        int is_printable = 1;
+                        for (size_t i = 0; i < payload_len; i++) {
+                            if (payload[i] < 32 && payload[i] != '\n' && payload[i] != '\r' && payload[i] != '\t') {
+                                if (payload[i] != 0 || i < payload_len - 1) {
+                                    is_printable = 0;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (is_printable) {
+                            printf("Message: %.*s\n", (int)payload_len, payload);
+                        } else {
+                            printf("Data (hex): ");
+                            for (size_t i = 0; i < payload_len; i++) {
+                                printf("%02X ", payload[i]);
+                                if ((i + 1) % 16 == 0 && i + 1 < payload_len) printf("\n            ");
+                            }
+                            printf("\n");
+                        }
+
+                        printf("\n");
+                    }
+                }
+                log_info(TAG, "Received data message from 0x%08X", sender_id);
                 break;
+            }
             default:
                 log_info(TAG, "Received unknown message type: %d", hdr.message_type);
                 break;
@@ -189,27 +441,18 @@ static void on_data_received(const uint32_t sender_id, const uint8_t *data, cons
     }
 }
 
-const char *node_type_to_string(const enum NODE_TYPE type) {
-    switch (type) {
-        case EDGE_NODE: return "EDGE";
-        case FULL_NODE: return "FULL";
-        case GATEWAY_NODE: return "GATEWAY";
-        default: return "UNKNOWN";
-    }
-}
-
 // NOLINTNEXTLINE
-static int get_adapter_address(char *address, size_t len) {
-    GDBusConnection *dbus = g_bus_get_sync(G_BUS_TYPE_SYSTEM, NULL, NULL);
+static int get_adapter_address(char * address, size_t len) {
+    GDBusConnection * dbus = g_bus_get_sync(G_BUS_TYPE_SYSTEM, NULL, NULL);
     if (!dbus) return -1;
 
-    Adapter *adapter = binc_adapter_get_default(dbus);
+    Adapter * adapter = binc_adapter_get_default(dbus);
     if (!adapter) {
         g_object_unref(dbus);
         return -1;
     }
 
-    const char *addr = binc_adapter_get_address(adapter);
+    const char * addr = binc_adapter_get_address(adapter);
     if (addr) {
         strncpy(address, addr, len - 1);
         address[len - 1] = '\0';
@@ -222,41 +465,8 @@ static int get_adapter_address(char *address, size_t len) {
     return addr ? 0 : -1;
 }
 
-// Convert MAC address to 32-bit device ID (uses last 4 bytes)
-static uint32_t mac_to_device_id(const char *mac) {
-    unsigned long bytes[6];
-    char *end = NULL;
 
-    for (int i = 0; i < 6; i++) {
-        if (!isxdigit((unsigned char)mac[0]) ||
-            !isxdigit((unsigned char)mac[1])) {
-            return 0;
-            }
-
-        bytes[i] = strtoul(mac, &end, 16);
-        if (end != mac + 2 || bytes[i] > 0xFF) {
-            return 0;
-        }
-
-        mac = end;
-
-        if (i < 5) {
-            if (*mac != ':') {
-                return 0;
-            }
-            mac++;
-        }
-    }
-
-    // Use last 4 bytes of MAC for unique 32-bit ID
-    return ((uint32_t)bytes[2] << 24) |
-           ((uint32_t)bytes[3] << 16) |
-           ((uint32_t)bytes[4] << 8)  |
-           ((uint32_t)bytes[5]);
-}
-
-
-int main(const int argc, char *argv[]) {
+int main(const int argc, char * argv[]) {
     enum NODE_TYPE node_type = FULL_NODE;
     int verbose = 0;
 
@@ -296,7 +506,7 @@ int main(const int argc, char *argv[]) {
     log_enabled(TRUE);
     log_set_level(verbose ? LOG_DEBUG : LOG_INFO);
 
-    log_debug(TAG, "LocalNet starting...");
+    log_debug(TAG, "LocalNet starting");
 
     // Get adapter MAC address
     char mac_address[18] = {0};
@@ -325,9 +535,10 @@ int main(const int argc, char *argv[]) {
     if (signal(SIGTERM, signal_handler) == SIG_ERR) {
         log_error(TAG, "Cannot set SIGTERM handler");
     }
+    struct mesh_node * mesh_node = create_mesh_node(g_device_id, node_type);
 
     // Initialize BLE node manager with callbacks
-    g_ble_manager = ble_init(NULL, g_device_id,
+    g_ble_manager = ble_init(mesh_node, g_device_id,
                               on_node_discovered,
                               on_node_connected,
                               on_node_disconnected,
@@ -349,7 +560,7 @@ int main(const int argc, char *argv[]) {
     log_info(TAG, "Initiating Scanning");
 
     // Set up stdin input handling for menu commands
-    GIOChannel *stdin_channel = g_io_channel_unix_new(STDIN_FILENO);
+    GIOChannel * stdin_channel = g_io_channel_unix_new(STDIN_FILENO);
     g_io_channel_set_encoding(stdin_channel, NULL, NULL);
     g_io_channel_set_buffered(stdin_channel, TRUE);
     const guint stdin_watch_id = g_io_add_watch(stdin_channel, G_IO_IN, stdin_callback, NULL);

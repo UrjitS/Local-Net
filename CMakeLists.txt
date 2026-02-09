@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 4.0)
 project(LocalNet)
-
 set(CMAKE_CXX_STANDARD 20)
 
 # Point CMake at the custom prefix
@@ -25,6 +24,7 @@ include_directories(${CMAKE_SOURCE_DIR}/protocol)
 include_directories(${CMAKE_SOURCE_DIR}/encryption)
 include_directories(${CMAKE_SOURCE_DIR}/routing)
 include_directories(${CMAKE_SOURCE_DIR}/utils)
+include_directories(${CMAKE_SOURCE_DIR}/handlers)
 include_directories(${CMAKE_SOURCE_DIR}/tests)
 
 add_executable(LocalNet
@@ -33,6 +33,7 @@ add_executable(LocalNet
         protocol/protocol.c
         encryption/encryption.c
         routing/routing.c
+        handlers/handlers.c
         utils/utils.c
         utils/utils.h
 )
