@@ -29,7 +29,7 @@ int handle_acknowledgement(struct mesh_node *mesh_node, const struct acknowledge
             update_link_quality(mesh_node->connection_table, sender_id, 0);
         }
 
-        // Handle specific error codes TODO
+        // Handle specific error codes
         switch (ack->status_code) {
             case ROUTE_NOT_FOUND:
                 log_warn(HANDLER_TAG, "ACK reports route not found for seq %u", ack->sequence_number);
