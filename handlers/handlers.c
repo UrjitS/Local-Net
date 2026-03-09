@@ -372,4 +372,8 @@ void free_handler_result(struct handler_result *result) {
         free(result->packet_data);
         result->packet_data = NULL;
     }
+    if (result->kex_response_data) {
+        free(result->kex_response_data);
+        result->kex_response_data = NULL;
+    }
 }

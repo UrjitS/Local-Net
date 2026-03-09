@@ -10,6 +10,7 @@
 #include "routing.h"
 #include "handlers.h"
 #include "utils.h"
+#include "encryption.h"
 
 
 static ble_node_manager_t * g_manager = NULL;
@@ -167,11 +168,17 @@ static void connect_to_device(tracked_device_t * tracked) {
     if (!g_manager || !tracked || !tracked->device) return;
     if (tracked->is_connected) return;
 
+    if (g_manager->connecting_in_progress) {
+        log_debug(BT_TAG, "Connection already in progress to 0x%08X, skipping connect to 0x%08X", g_manager->connecting_to_id, tracked->device_id);
+        return;
+    }
+
     log_info(BT_TAG, "Connecting to device 0x%08X", tracked->device_id);
 
-    // Stop advertising and discovery before connecting to avoid conflicts 
-    log_debug(BT_TAG, "Stopping advertising before connection attempt");
-    stop_advertising();
+    g_manager->connecting_in_progress = TRUE;
+    g_manager->connecting_to_id = tracked->device_id;
+    g_manager->last_connect_attempt_time = get_current_timestamp();
+
     log_debug(BT_TAG, "Stopping discovery before connection attempt");
     stop_discovery();
 
@@ -360,7 +367,21 @@ static void on_scan_result(Adapter * adapter, Device * device) {
     }
 
     if (g_manager->device_id > device_id) {
-        log_debug(BT_TAG, "Connecting to 0x%08X", device_id);
+        // Check if we already have an incoming connection from this device
+        const tracked_device_t * existing = find_device_by_id(device_id);
+        if (existing && existing->is_connected) {
+            log_debug(BT_TAG, "Already connected to 0x%08X (incoming), skipping outbound", device_id);
+            return;
+        }
+
+        const uint32_t now = get_current_timestamp();
+        const uint32_t backoff_seconds = (g_manager->connect_retry_count < 5) ? (uint32_t)(RECONNECT_DELAY_MS / 1000) * (g_manager->connect_retry_count + 1) : 30;
+        if (g_manager->last_connect_attempt_time > 0 &&
+            (now - g_manager->last_connect_attempt_time) < backoff_seconds) {
+            log_debug(BT_TAG, "Backoff: waiting before reconnecting to 0x%08X (%u/%u sec)", device_id, now - g_manager->last_connect_attempt_time, backoff_seconds);
+            return;
+        }
+
         connect_to_device(tracked);
     } else {
         log_debug(BT_TAG, "Waiting for 0x%08X to connect to us", device_id);
@@ -385,14 +406,26 @@ static void on_connection_state_changed(Device * device, ConnectionState state, 
         log_error(BT_TAG, "Connection error for 0x%08X: %s", device_id, error->message);
     }
 
-    log_debug(BT_TAG, "Connection state changed for 0x%08X: %s", device_id, state_name);
+    log_info(BT_TAG, "Connection state changed for 0x%08X: %s", device_id, state_name);
 
     switch (state) {
         case BINC_CONNECTED:
-            start_advertising();
+            // Clear connecting flag
+            if (g_manager->connecting_in_progress && g_manager->connecting_to_id == device_id) {
+                g_manager->connecting_in_progress = FALSE;
+                g_manager->connecting_to_id = 0;
+                g_manager->connect_retry_count = 0;
+            }
             start_discovery();
             break;
         case BINC_DISCONNECTED:
+            // Clear connecting flag
+            if (g_manager->connecting_in_progress && g_manager->connecting_to_id == device_id) {
+                g_manager->connecting_in_progress = FALSE;
+                g_manager->connecting_to_id = 0;
+                g_manager->connect_retry_count++;
+                log_info(BT_TAG, "Outbound connection to 0x%08X failed (attempt %u)", device_id, g_manager->connect_retry_count);
+            }
             if (tracked) {
                 const gboolean was_connected = tracked->is_connected;
                 const uint32_t tracked_device_id = tracked->device_id;
@@ -412,9 +445,7 @@ static void on_connection_state_changed(Device * device, ConnectionState state, 
                 binc_adapter_remove_device(g_manager->adapter, device);
             }
 
-            // Restart advertising and discovery after disconnection
-            log_debug(BT_TAG, "Restarting advertising and discovery after disconnection");
-            start_advertising();
+            log_debug(BT_TAG, "Restarting discovery after disconnection");
             start_discovery();
             break;
         case BINC_CONNECTING:
@@ -439,8 +470,7 @@ static void on_services_resolved(Device * device) {
         binc_characteristic_start_notify(characteristic);
     }
 
-    log_debug(BT_TAG, "Restarting advertising and discovery after successful connection");
-    start_advertising();
+    log_debug(BT_TAG, "Restarting discovery after successful connection");
     start_discovery();
 
     if (g_manager->connected_callback) {
@@ -449,24 +479,21 @@ static void on_services_resolved(Device * device) {
 }
 
 // Helper function to process handler result and dispatch BLE actions
-static void process_handler_result(struct handler_result *result, const uint8_t *data, size_t data_len) {
+static void process_handler_result(struct handler_result *result, const uint8_t *data, const size_t data_len) {
     if (!g_manager || !result) return;
 
     switch (result->action) {
         case HANDLER_ACTION_SEND_REPLY:
         case HANDLER_ACTION_FORWARD_REPLY:
-            ble_send_route_reply(g_manager, result->target_node, result->request_id,
-                                 result->route_cost, result->forward_path, result->forward_path_len);
+            ble_send_route_reply(g_manager, result->target_node, result->request_id, result->route_cost, result->forward_path, result->forward_path_len);
             break;
 
         case HANDLER_ACTION_FORWARD_REQUEST:
-            ble_broadcast_route_request(g_manager, result->request_id, result->destination_id,
-                                        result->hop_count, result->reverse_path,
-                                        result->reverse_path_len, result->exclude_neighbor);
+            ble_broadcast_route_request(g_manager, result->request_id, result->destination_id, result->hop_count, result->reverse_path, result->reverse_path_len, result->exclude_neighbor);
             break;
 
         case HANDLER_ACTION_ROUTE_COMPLETE:
-            /* Route discovery complete - check for queued packets to send */
+            // Route discovery complete - check for queued packets to send 
             log_info(BT_TAG, "Route discovery complete for 0x%08X", result->destination_id);
             ble_send_queued_packets(g_manager, result->destination_id);
             break;
@@ -478,7 +505,7 @@ static void process_handler_result(struct handler_result *result, const uint8_t 
             break;
 
         case HANDLER_ACTION_SEND_ACK: {
-            /* Send acknowledgement back to source */
+            // Send acknowledgement back to source 
             uint8_t ack_buffer[64];
             const size_t ack_len = create_acknowledgement_packet(
                 result->sequence_number,
@@ -493,7 +520,7 @@ static void process_handler_result(struct handler_result *result, const uint8_t 
                 log_debug(BT_TAG, "Sent ACK for seq %u to 0x%08X",
                          result->sequence_number, result->target_node);
             }
-            /* Also deliver data locally if this was for us */
+            // Also deliver data locally if this was for us 
             if (g_manager->data_callback) {
                 g_manager->data_callback(result->source_id, data, data_len);
             }
@@ -501,7 +528,7 @@ static void process_handler_result(struct handler_result *result, const uint8_t 
         }
 
         case HANDLER_ACTION_FORWARD_DATA:
-            /* Forward data packet to next hop */
+            // Forward data packet to next hop 
             if (result->packet_data && result->packet_len > 0) {
                 if (ble_send_data(g_manager, result->next_hop, result->packet_data, result->packet_len)) {
                     log_debug(BT_TAG, "Forwarded packet to next hop 0x%08X", result->next_hop);
@@ -512,7 +539,7 @@ static void process_handler_result(struct handler_result *result, const uint8_t 
             break;
 
         case HANDLER_ACTION_INITIATE_ROUTE_DISCOVERY: {
-            /* Queue the packet and initiate route discovery if not already pending */
+            // Queue the packet and initiate route discovery if not already pending 
             if (result->packet_data && result->packet_len > 0 && g_manager->mesh_node->packet_queue) {
                 const uint32_t current_time_ms = get_current_timestamp() * 1000;
                 queue_packet_for_transmission(g_manager->mesh_node->packet_queue,
@@ -520,7 +547,7 @@ static void process_handler_result(struct handler_result *result, const uint8_t 
                                              result->packet_data,
                                              result->packet_len,
                                              current_time_ms);
-                /* Mark packet as awaiting route */
+                // Mark packet as awaiting route 
                 struct pending_packet_queue *queue = g_manager->mesh_node->packet_queue;
                 for (size_t i = 0; i < MAX_PENDING_PACKETS; i++) {
                     if (queue->packets[i].destination_id == result->destination_id &&
@@ -530,13 +557,13 @@ static void process_handler_result(struct handler_result *result, const uint8_t 
                 }
             }
 
-            /* Initiate route discovery if no request is pending */
+            // Initiate route discovery if no request is pending 
             if (result->request_id == 0) {
                 const uint32_t request_id = ble_initiate_route_discovery(g_manager, result->destination_id);
                 if (request_id > 0) {
                     log_info(BT_TAG, "Initiated route discovery for 0x%08X (request: 0x%08X)",
                             result->destination_id, request_id);
-                    /* Associate with queued packets */
+                    // Associate with queued packets 
                     if (g_manager->mesh_node->packet_queue) {
                         associate_route_request_with_packets(g_manager->mesh_node->packet_queue,
                                                             result->destination_id,
@@ -552,7 +579,7 @@ static void process_handler_result(struct handler_result *result, const uint8_t 
 
         case HANDLER_ACTION_TTL_EXPIRED:
         case HANDLER_ACTION_DEST_UNREACHABLE: {
-            /* Send error acknowledgement back to source */
+            // Send error acknowledgement back to source 
             uint8_t ack_buffer[64];
             const size_t ack_len = create_acknowledgement_packet(
                 result->sequence_number,
@@ -611,9 +638,8 @@ static void on_remote_central_connected(Adapter * adapter, Device * device) {
 
     const char * name = binc_device_get_name(device);
     const char * mac = binc_device_get_address(device);
-    // Reject connections if we're not actively advertising
-    if (!g_manager->advertisement) {
-        log_info(BT_TAG, "Rejecting ghost connection from %s", mac);
+    if (!g_manager->running) {
+        log_info(BT_TAG, "Rejecting connection while shutting down from %s", mac);
         binc_device_disconnect(device);
         binc_adapter_remove_device(adapter, device);
         return;
@@ -632,6 +658,13 @@ static void on_remote_central_connected(Adapter * adapter, Device * device) {
     }
 
     log_info(BT_TAG, "Remote connected: %s (%s)", name ? name : "unknown", mac);
+
+    if (g_manager->connecting_in_progress && g_manager->connecting_to_id == device_id) {
+        log_info(BT_TAG, "Accepting incoming connection from 0x%08X (cancelling outbound attempt)", device_id);
+        g_manager->connecting_in_progress = FALSE;
+        g_manager->connecting_to_id = 0;
+        g_manager->connect_retry_count = 0;
+    }
 
     // Track device
     tracked_device_t * tracked = add_device(device_id, mac, device);
@@ -732,6 +765,10 @@ ble_node_manager_t* ble_init(struct mesh_node * mesh_node, uint32_t device_id, b
 
     manager->discovered_devices = g_new0(tracked_device_t, MAX_DISCOVERED_DEVICES);
     manager->discovered_count = 0;
+    manager->connecting_in_progress = FALSE;
+    manager->connecting_to_id = 0;
+    manager->last_connect_attempt_time = 0;
+    manager->connect_retry_count = 0;
 
     g_manager = manager;
     log_debug(BT_TAG, "Initialized BLE node manager for device ID: 0x%08X", device_id);
@@ -1224,11 +1261,10 @@ gboolean ble_send_route_reply(ble_node_manager_t *manager, const uint32_t target
     return ble_send_data(manager, target_id, buffer, total_len);
 }
 
-uint16_t ble_send_message(ble_node_manager_t *manager, const uint32_t destination_id,
-                          const uint8_t *payload, const size_t payload_len) {
+uint16_t ble_send_message(ble_node_manager_t * manager, const uint32_t destination_id, const uint8_t * payload, const size_t payload_len) {
     if (!manager || !manager->mesh_node || !payload || payload_len == 0) return 0;
 
-    struct mesh_node *node = manager->mesh_node;
+    struct mesh_node * node = manager->mesh_node;
 
     struct forwarding_decision decision;
     uint8_t ttl = MAX_HOP_COUNT;
@@ -1239,6 +1275,119 @@ uint16_t ble_send_message(ble_node_manager_t *manager, const uint32_t destinatio
         seq_num = node->packet_queue->next_sequence_number;
     }
 
+    // Check if we have an OOB_VERIFIED session for this destination
+    const struct encryption_session * session = NULL;
+    if (manager->session_mgr) {
+        session = session_find_by_peer(manager->session_mgr, destination_id);
+        if (session && session->state != SESSION_STATE_OOB_VERIFIED) {
+            session = NULL;
+        }
+    }
+
+    if (session) {
+        // Encrypted send path
+        struct header header = {
+            .protocol_version = PROTOCOL_VERSION,
+            .message_type = MSG_DATA,
+            .fragmentation_flag = 0,
+            .fragmentation_number = 0,
+            .total_fragments = 1,
+            .time_to_live = MAX_HOP_COUNT,
+            .payload_length = (uint16_t)payload_len,
+            .sequence_number = seq_num
+        };
+
+        struct network network = {
+            .source_id = manager->device_id,
+            .destination_id = destination_id
+        };
+
+        // Serialize header and network for MAC computation
+        uint8_t header_bytes[8];
+        uint8_t network_bytes[8];
+        serialize_header(&header, header_bytes, sizeof(header_bytes));
+        serialize_network(&network, network_bytes, sizeof(network_bytes));
+
+        // Encrypt the payload
+        uint8_t * ciphertext = NULL;
+        size_t ciphertext_len = 0;
+        struct security_block sec_block;
+
+        const int enc_result = encrypt_frame(manager->session_mgr, destination_id,
+                                       header_bytes, sizeof(header_bytes),
+                                       network_bytes, sizeof(network_bytes),
+                                       payload, payload_len,
+                                       &ciphertext, &ciphertext_len, &sec_block);
+
+        if (enc_result != ENC_SUCCESS) {
+            log_error(BT_TAG, "Failed to encrypt payload for 0x%08X (error: %d)", destination_id, enc_result);
+            return 0;
+        }
+
+        // Build the protocol security struct from our security_block
+        struct security sec = {
+            .key_id = sec_block.key_id,
+            .frame_counter = sec_block.frame_counter,
+        };
+        memcpy(sec.nonce, sec_block.nonce, 7);
+        memcpy(sec.mac, sec_block.mac, 12);
+
+        // Assemble and serialize the encrypted packet
+        const struct packet pkt = {
+            .header = &header,
+            .network = &network,
+            .payload = ciphertext,
+            .security = &sec
+        };
+
+        uint8_t buffer[MAX_BLE_PAYLOAD_SIZE];
+        const size_t total_len = serialize_packet(&pkt, buffer, sizeof(buffer));
+        free(ciphertext);
+
+        if (total_len == 0) {
+            log_error(BT_TAG, "Failed to serialize encrypted data packet");
+            return 0;
+        }
+
+        const uint32_t current_time_ms = get_current_timestamp() * 1000;
+
+        if (decision.action == 0) {
+            if (node->packet_queue) {
+                seq_num = queue_packet_for_transmission(node->packet_queue, destination_id, buffer, total_len, current_time_ms);
+            }
+            if (ble_send_data(manager, decision.next_hop, buffer, total_len)) {
+                log_info(BT_TAG, "Sent encrypted message to 0x%08X via 0x%08X (seq: %u, fc: %u)", destination_id, decision.next_hop, seq_num, sec_block.frame_counter);
+                return seq_num;
+            }
+        } else if (decision.action == -2) {
+            if (node->packet_queue) {
+                seq_num = queue_packet_for_transmission(node->packet_queue, destination_id, buffer, total_len, current_time_ms);
+                struct pending_packet * pkt_entry = get_pending_packet(node->packet_queue, seq_num);
+                if (pkt_entry) {
+                    pkt_entry->state = PACKET_STATE_AWAITING_ROUTE;
+                }
+            }
+
+            if (!has_pending_route_discovery(node, destination_id)) {
+                const uint32_t request_id = ble_initiate_route_discovery(manager, destination_id);
+                if (request_id > 0) {
+                    log_info(BT_TAG, "Queued encrypted message for 0x%08X, initiated route discovery (request: 0x%08X)", destination_id, request_id);
+                    if (node->packet_queue) {
+                        associate_route_request_with_packets(node->packet_queue, destination_id, request_id);
+                    }
+                }
+            } else {
+                log_info(BT_TAG, "Queued encrypted message for 0x%08X, route discovery already pending", destination_id);
+            }
+            return seq_num;
+        } else {
+            log_error(BT_TAG, "Cannot send encrypted message to 0x%08X: forwarding decision=%d", destination_id, decision.action);
+        }
+
+        return 0;
+    }
+
+    // Unencrypted send path (no verified session)
     struct header header = {
         .protocol_version = PROTOCOL_VERSION,
         .message_type = MSG_DATA,
@@ -1273,20 +1422,18 @@ uint16_t ble_send_message(ble_node_manager_t *manager, const uint32_t destinatio
 
     if (decision.action == 0) {
         if (node->packet_queue) {
-            seq_num = queue_packet_for_transmission(node->packet_queue, destination_id,
-                                                    buffer, total_len, current_time_ms);
+            seq_num = queue_packet_for_transmission(node->packet_queue, destination_id, buffer, total_len, current_time_ms);
         }
         if (ble_send_data(manager, decision.next_hop, buffer, total_len)) {
-            log_info(BT_TAG, "Sent message to 0x%08X via 0x%08X (seq: %u)",
-                    destination_id, decision.next_hop, seq_num);
+            log_info(BT_TAG, "Sent message to 0x%08X via 0x%08X (seq: %u)", destination_id, decision.next_hop, seq_num);
             return seq_num;
         }
     } else if (decision.action == -2) {
         if (node->packet_queue) {
             seq_num = queue_packet_for_transmission(node->packet_queue, destination_id, buffer, total_len, current_time_ms);
-            struct pending_packet *pkt = get_pending_packet(node->packet_queue, seq_num);
-            if (pkt) {
-                pkt->state = PACKET_STATE_AWAITING_ROUTE;
+            struct pending_packet * pkt_entry = get_pending_packet(node->packet_queue, seq_num);
+            if (pkt_entry) {
+                pkt_entry->state = PACKET_STATE_AWAITING_ROUTE;
             }
         }
 
@@ -1315,7 +1462,7 @@ void ble_send_queued_packets(ble_node_manager_t *manager, const uint32_t destina
     const struct mesh_node * node = manager->mesh_node;
     struct pending_packet_queue *queue = node->packet_queue;
 
-    /* Find route to destination */
+    // Find route to destination 
     struct routing_entry *route = find_best_route(node->routing_table, destination_id);
     if (!route || !route->is_valid) {
         log_error(BT_TAG, "No route found for destination 0x%08X after route discovery", destination_id);
@@ -1338,17 +1485,15 @@ void ble_send_queued_packets(ble_node_manager_t *manager, const uint32_t destina
             pkt->retry_count == 0 &&
             pkt->packet_data && pkt->packet_len > 0) {
 
-            /* Send the packet */
+            // Send the packet 
             if (ble_send_data(manager, route->next_hop, pkt->packet_data, pkt->packet_len)) {
-                log_info(BT_TAG, "Sent queued packet (seq: %u) to 0x%08X via 0x%08X",
-                        pkt->sequence_number, destination_id, route->next_hop);
-                /* Update timing so retransmit logic doesn't immediately resend */
+                log_info(BT_TAG, "Sent queued packet (seq: %u) to 0x%08X via 0x%08X", pkt->sequence_number, destination_id, route->next_hop);
+                // Update timing so retransmit logic doesn't immediately resend 
                 pkt->next_retry_timestamp = current_time_ms + INITIAL_RETRANSMIT_INTERVAL_MS;
                 pkt->retry_interval_ms = INITIAL_RETRANSMIT_INTERVAL_MS;
                 sent_count++;
             } else {
-                log_error(BT_TAG, "Failed to send queued packet (seq: %u) to 0x%08X",
-                         pkt->sequence_number, destination_id);
+                log_error(BT_TAG, "Failed to send queued packet (seq: %u) to 0x%08X", pkt->sequence_number, destination_id);
             }
         }
     }
@@ -1365,46 +1510,43 @@ void ble_process_retransmissions(ble_node_manager_t *manager) {
     struct pending_packet_queue *queue = node->packet_queue;
     const uint32_t current_time_ms = get_current_timestamp() * 1000;
 
-    /* Check for packets needing retransmission */
+    // Check for packets needing retransmission 
     uint16_t retry_seq_nums[MAX_PENDING_PACKETS];
-    const size_t retry_count = check_retransmission_timeouts(queue, current_time_ms,
-                                                             retry_seq_nums, MAX_PENDING_PACKETS);
+    const size_t retry_count = check_retransmission_timeouts(queue, current_time_ms, retry_seq_nums, MAX_PENDING_PACKETS);
 
     for (size_t i = 0; i < retry_count; i++) {
         struct pending_packet *pkt = get_pending_packet(queue, retry_seq_nums[i]);
         if (!pkt || !pkt->packet_data) continue;
 
-        /* Find route to destination */
+        // Find route to destination 
         struct routing_entry *route = find_best_route(node->routing_table, pkt->destination_id);
         if (!route || !route->is_valid) {
-            log_warn(BT_TAG, "No route for retransmit of seq %u to 0x%08X - marking failed",
-                    pkt->sequence_number, pkt->destination_id);
+            log_warn(BT_TAG, "No route for retransmit of seq %u to 0x%08X - marking failed", pkt->sequence_number, pkt->destination_id);
             pkt->state = PACKET_STATE_FAILED;
 
-            /* Update link quality negatively */
+            // Update link quality negatively 
             if (node->connection_table) {
                 update_link_quality(node->connection_table, pkt->destination_id, 0);
             }
             continue;
         }
 
-        /* Retransmit the packet */
+        // Retransmit the packet 
         if (ble_send_data(manager, route->next_hop, pkt->packet_data, pkt->packet_len)) {
             log_info(BT_TAG, "Retransmit #%u of seq %u to 0x%08X via 0x%08X (interval: %ums)",
                     pkt->retry_count + 1, pkt->sequence_number,
                     pkt->destination_id, route->next_hop, pkt->retry_interval_ms);
 
-            /* Update retry timing with exponential backoff */
+            // Update retry timing with exponential backoff 
             update_retry_timing(pkt, current_time_ms);
         } else {
-            log_error(BT_TAG, "Failed retransmit of seq %u to 0x%08X",
-                     pkt->sequence_number, pkt->destination_id);
-            /* Still update timing to avoid immediate re-attempts */
+            log_error(BT_TAG, "Failed retransmit of seq %u to 0x%08X", pkt->sequence_number, pkt->destination_id);
+            // Still update timing to avoid immediate re-attempts
             update_retry_timing(pkt, current_time_ms);
         }
     }
 
-    /* Check for route request timeouts */
+    // Check for route request timeouts 
     uint32_t timed_out_dests[MAX_PENDING_REQUESTS];
     const size_t timeout_count = check_route_request_timeouts(node, get_current_timestamp(),
                                                               timed_out_dests, MAX_PENDING_REQUESTS);
@@ -1415,10 +1557,79 @@ void ble_process_retransmissions(ble_node_manager_t *manager) {
         ble_initiate_route_discovery(manager, timed_out_dests[i]);
     }
 
-    /* Cleanup delivered/failed packets periodically */
+    // Cleanup delivered/failed packets periodically 
     const size_t cleaned = cleanup_pending_packets(queue);
     if (cleaned > 0) {
         log_debug(BT_TAG, "Cleaned up %zu delivered/failed packets", cleaned);
     }
+}
+
+void ble_set_session_manager(ble_node_manager_t *manager, struct session_manager *mgr) {
+    if (manager) {
+        manager->session_mgr = mgr;
+    }
+}
+
+struct session_manager * ble_get_session_manager(ble_node_manager_t *manager) {
+    if (!manager) return NULL;
+    return manager->session_mgr;
+}
+
+int ble_initiate_key_exchange(ble_node_manager_t * manager, uint32_t peer_id) {
+    if (!manager || !manager->session_mgr || !manager->mesh_node) return -1;
+
+    struct key_exchange_ext_message kex_msg;
+    if (initiate_key_exchange(manager->session_mgr, peer_id, &kex_msg) != 0) {
+        log_error(BT_TAG, "Failed to initiate key exchange with 0x%08X", peer_id);
+        return -1;
+    }
+
+    // Serialize the key exchange message
+    uint8_t kex_payload[KEY_EXCHANGE_EXT_SIZE];
+    const size_t kex_len = serialize_key_exchange_ext(&kex_msg, kex_payload, sizeof(kex_payload));
+    if (kex_len == 0) {
+        log_error(BT_TAG, "Failed to serialize key exchange message");
+        return -1;
+    }
+
+    // Build protocol packet
+    struct header hdr = {
+        .protocol_version = PROTOCOL_VERSION,
+        .message_type = MSG_KEY_EXCHANGE,
+        .fragmentation_flag = 0,
+        .fragmentation_number = 0,
+        .total_fragments = 1,
+        .time_to_live = MAX_HOP_COUNT,
+        .payload_length = (uint16_t)kex_len,
+        .sequence_number = 0
+    };
+
+    struct network net = {
+        .source_id = manager->device_id,
+        .destination_id = peer_id
+    };
+
+    const struct packet pkt = {
+        .header = &hdr,
+        .network = &net,
+        .payload = kex_payload,
+        .security = NULL
+    };
+
+    uint8_t buffer[256];
+    const size_t total = serialize_packet(&pkt, buffer, sizeof(buffer));
+    if (total == 0) {
+        log_error(BT_TAG, "Failed to serialize key exchange packet");
+        return -1;
+    }
+
+    // Send to peer
+    if (!ble_send_data(manager, peer_id, buffer, total)) {
+        log_error(BT_TAG, "Failed to send key exchange to 0x%08X", peer_id);
+        return -1;
+    }
+
+    log_info(BT_TAG, "Key exchange request sent to 0x%08X", peer_id);
+    return 0;
 }
 

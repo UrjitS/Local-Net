@@ -38,9 +38,13 @@ The following prerequisite is required:
 * Bluetooth
 * GLib 2.0
 * bluez_inc
+* OpenSSL
+* Sodium
 ```
 sudo apt-get install libbluetooth-dev
 sudo apt install -y libglib2.0-dev
+sudo apt-get install -y libssl-dev
+sudo apt-get install -y libsodium-dev
 ```
 
 ### How do setup bluez_inc

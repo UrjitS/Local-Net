@@ -5,7 +5,6 @@
 #include "protocol.h"
 #include <stdio.h>
 
-
 uint8_t get_max_connections(const enum NODE_TYPE node_type) {
     switch (node_type) {
         case EDGE_NODE:
@@ -40,7 +39,7 @@ void free_mesh_node(struct mesh_node *node) {
     free(node);
 }
 
-/* Node Management Functions */
+// Node Management Functions 
 struct mesh_node *create_mesh_node(const uint32_t device_id, const enum NODE_TYPE node_type) {
     struct mesh_node *node = malloc(sizeof(struct mesh_node));
     if (!node) return NULL;
@@ -67,7 +66,7 @@ struct mesh_node *create_mesh_node(const uint32_t device_id, const enum NODE_TYP
     return node;
 }
 
-/* Connection Table Functions */
+// Connection Table Functions 
 struct connection_table *create_connection_table(void) {
     struct connection_table *table = malloc(sizeof(struct connection_table));
     if (!table) return NULL;
@@ -185,7 +184,7 @@ void check_connection_timeouts(struct connection_table *table, const uint32_t cu
     }
 }
 
-/* Routing Table Functions */
+// Routing Table Functions 
 struct routing_table *create_routing_table(void) {
     struct routing_table *table = malloc(sizeof(struct routing_table));
     if (!table) return NULL;
@@ -333,7 +332,7 @@ float calculate_route_cost(struct connection_table *conn_table, uint32_t *path, 
     return total_cost;
 }
 
-/* Route Request Cache Functions */
+// Route Request Cache Functions 
 struct route_request_cache *create_route_request_cache(void) {
     struct route_request_cache * rr_cache = malloc(sizeof(struct route_request_cache));
     if (!rr_cache) return NULL;
@@ -395,7 +394,7 @@ void cleanup_old_requests(struct route_request_cache *cache, const uint32_t curr
     }
 }
 
-/* Discovery Functions */
+// Discovery Functions 
 int should_send_discovery(struct mesh_node *node, const uint32_t current_time) {
     if (!node || !has_available_connections(node)) return 0;
 
@@ -425,7 +424,7 @@ int has_available_connections(struct mesh_node *node) {
     return active_connections < node->max_connections;
 }
 
-/* Heartbeat Functions */
+// Heartbeat Functions 
 void increment_missed_heartbeat(struct connection_table *table, const uint32_t neighbor_id) {
     struct connection_entry *entry = find_connection(table, neighbor_id);
     if (entry) {
@@ -473,11 +472,11 @@ size_t check_and_get_heartbeat_timeouts(struct mesh_node *node, const uint32_t c
     for (size_t i = 0; i < node->connection_table->count; i++) {
         struct connection_entry *entry = &node->connection_table->entries[i];
 
-        /* Check all connected states (STABLE and CONNECTING) */
+        // Check all connected states (STABLE and CONNECTING) 
         if (entry->state == STABLE || entry->state == CONNECTING) {
             const uint32_t time_since_seen = current_time - entry->last_seen;
 
-            /* Check if we should increment missed heartbeats */
+            // Check if we should increment missed heartbeats 
             const uint32_t expected_heartbeats = time_since_seen / HEARTBEAT_INTERVAL_SECONDS;
             if (expected_heartbeats > 0 && (uint32_t)entry->missed_heartbeats < expected_heartbeats) {
                 entry->missed_heartbeats = (uint8_t)expected_heartbeats;
@@ -485,7 +484,7 @@ size_t check_and_get_heartbeat_timeouts(struct mesh_node *node, const uint32_t c
                 if (entry->missed_heartbeats >= HEARTBEAT_MISSED_THRESHOLD) {
                     entry->state = DISCONNECTED;
 
-                    /* Add to output list if we have room */
+                    // Add to output list if we have room 
                     if (timeout_count < max_count) {
                         timed_out_ids[timeout_count] = entry->neighbor_id;
                         timeout_count++;
@@ -498,7 +497,7 @@ size_t check_and_get_heartbeat_timeouts(struct mesh_node *node, const uint32_t c
     return timeout_count;
 }
 
-/* Route Discovery Functions */
+// Route Discovery Functions 
 int initiate_route_discovery(struct mesh_node *node, const uint32_t destination_id, uint32_t **reverse_path_out, uint8_t *path_len_out) {
     if (!node || !reverse_path_out || !path_len_out) return -1;
 
@@ -563,8 +562,7 @@ int process_route_request(struct mesh_node *node, const uint32_t request_id, con
     return 0;
 }
 
-int process_route_reply(struct mesh_node *node, uint32_t request_id, const uint8_t route_cost,
-                        const uint32_t *forward_path, const uint8_t forward_path_len) {
+int process_route_reply(struct mesh_node *node, uint32_t request_id, const uint8_t route_cost, const uint32_t *forward_path, const uint8_t forward_path_len) {
     if (!node || !forward_path || forward_path_len < 2) return -1;
 
     // The forward path should contain: [originator, ..., us, ..., destination]
@@ -584,14 +582,14 @@ int process_route_reply(struct mesh_node *node, uint32_t request_id, const uint8
     }
 
     // Next hop is the next node in the forward path
-    uint32_t next_hop = forward_path[our_position + 1];
-    uint32_t destination_id = forward_path[forward_path_len - 1];
+    const uint32_t next_hop = forward_path[our_position + 1];
+    const uint32_t destination_id = forward_path[forward_path_len - 1];
 
     // Calculate hop count from us to destination
-    uint8_t hop_count = forward_path_len - our_position - 1;
+    const uint8_t hop_count = forward_path_len - our_position - 1;
 
     // Calculate route cost
-    float cost = (float)route_cost;
+    const float cost = (float)route_cost;
 
     // Add or update route
     add_route(node->routing_table, destination_id, next_hop, hop_count, cost, get_current_timestamp());
@@ -599,9 +597,8 @@ int process_route_reply(struct mesh_node *node, uint32_t request_id, const uint8
     return 0;
 }
 
-/* Packet Forwarding Functions */
-int forward_packet(struct mesh_node *node, const uint32_t destination_id, uint8_t *ttl,
-                   uint32_t *next_hop_out) {
+// Packet Forwarding Functions 
+int forward_packet(struct mesh_node *node, const uint32_t destination_id, uint8_t *ttl, uint32_t *next_hop_out) {
     if (!node || !ttl || !next_hop_out) return -1;
 
     // Check if this is for us
@@ -632,36 +629,31 @@ int should_process_locally(struct mesh_node *node, const uint32_t destination_id
     return node->device_id == destination_id;
 }
 
-/* ========================================================================== */
-/* Enhanced Route Discovery Implementation                                     */
-/* ========================================================================== */
-
-int create_route_request(struct mesh_node *node, const uint32_t destination_id,
-                         struct route_request *req_out) {
+int create_route_request(struct mesh_node *node, const uint32_t destination_id, struct route_request *req_out) {
     if (!node || !req_out) return -1;
 
-    /* Check if we already have a valid route */
+    // Check if we already have a valid route 
     const struct routing_entry *existing = find_route(node->routing_table, destination_id);
     if (existing && existing->is_valid) {
         return 0;  /* Already have route, no need for discovery */
     }
 
-    /* Generate request ID */
+    // Generate request ID 
     const uint32_t request_id = generate_request_id();
 
-    /* Add to request cache */
+    // Add to request cache 
     add_route_request(node->request_cache, request_id, node->device_id, get_current_timestamp());
 
-    /* Add to pending requests for timeout tracking */
+    // Add to pending requests for timeout tracking 
     add_pending_route_request(node, request_id, destination_id);
 
-    /* Build the route request */
+    // Build the route request 
     req_out->request_id = request_id;
     req_out->destination_id = destination_id;
     req_out->hop_count = 0;
     req_out->reverse_path_len = 1;
 
-    /* Allocate and set reverse path with originator (this node) */
+    // Allocate and set reverse path with originator (this node) 
     req_out->reverse_path = malloc(sizeof(uint32_t) * (MAX_HOP_COUNT + 1));
     if (!req_out->reverse_path) return -1;
 
@@ -670,8 +662,7 @@ int create_route_request(struct mesh_node *node, const uint32_t destination_id,
     return (int)request_id;
 }
 
-int handle_route_request(struct mesh_node *node, const struct route_request *req,
-                        const uint32_t sender_id, struct route_request_result *result) {
+int handle_route_request(struct mesh_node *node, const struct route_request *req, const uint32_t sender_id, struct route_request_result *result) {
     if (!node || !req || !result) return -1;
 
     memset(result, 0, sizeof(*result));
@@ -679,28 +670,28 @@ int handle_route_request(struct mesh_node *node, const struct route_request *req
     result->destination_id = req->destination_id;
     result->exclude_neighbor = sender_id;
 
-    /* Check if we've already processed this request */
+    // Check if we've already processed this request 
     if (has_seen_request(node->request_cache, req->request_id)) {
         result->action = -1;  /* Drop duplicate */
         return -1;
     }
 
-    /* Add to request cache to prevent processing duplicates */
+    // Add to request cache to prevent processing duplicates 
     uint32_t originator_id = 0;
     if (req->reverse_path_len > 0 && req->reverse_path) {
         originator_id = req->reverse_path[0];
     }
     add_route_request(node->request_cache, req->request_id, originator_id, get_current_timestamp());
 
-    /* Increment hop count */
+    // Increment hop count 
     const uint8_t new_hop_count = req->hop_count + 1;
     result->hop_count = new_hop_count;
 
-    /* Check if we are the destination */
+    // Check if we are the destination 
     if (req->destination_id == node->device_id) {
         result->action = 1;  /* We are destination - generate route reply */
 
-        /* Build updated reverse path including us */
+        // Build updated reverse path including us 
         result->updated_path_len = req->reverse_path_len + 1;
         result->updated_reverse_path = malloc(sizeof(uint32_t) * result->updated_path_len);
         if (!result->updated_reverse_path) {
@@ -708,14 +699,14 @@ int handle_route_request(struct mesh_node *node, const struct route_request *req
             return -1;
         }
 
-        /* Copy existing path and add ourselves at the end */
+        // Copy existing path and add ourselves at the end 
         if (req->reverse_path && req->reverse_path_len > 0) {
             memcpy(result->updated_reverse_path, req->reverse_path,
                    req->reverse_path_len * sizeof(uint32_t));
         }
         result->updated_reverse_path[result->updated_path_len - 1] = node->device_id;
 
-        /* Add route back to originator through sender */
+        // Add route back to originator through sender 
         if (originator_id != 0 && originator_id != node->device_id) {
             add_route(node->routing_table, originator_id, sender_id,
                      new_hop_count, (float)new_hop_count, get_current_timestamp());
@@ -724,13 +715,13 @@ int handle_route_request(struct mesh_node *node, const struct route_request *req
         return 1;
     }
 
-    /* Check if we have a cached route to the destination (for FULL_NODE and GATEWAY_NODE) */
+    // Check if we have a cached route to the destination (for FULL_NODE and GATEWAY_NODE) 
     if (node->node_type != EDGE_NODE) {
         const struct routing_entry *cached_route = find_route(node->routing_table, req->destination_id);
         if (cached_route && cached_route->is_valid) {
-            result->action = 2;  /* Can reply with cached route */
+            result->action = 2;  // Can reply with cached route
 
-            /* Build updated path including us */
+            // Build updated path including us 
             result->updated_path_len = req->reverse_path_len + 1;
             result->updated_reverse_path = malloc(sizeof(uint32_t) * result->updated_path_len);
             if (!result->updated_reverse_path) {
@@ -739,31 +730,29 @@ int handle_route_request(struct mesh_node *node, const struct route_request *req
             }
 
             if (req->reverse_path && req->reverse_path_len > 0) {
-                memcpy(result->updated_reverse_path, req->reverse_path,
-                       req->reverse_path_len * sizeof(uint32_t));
+                memcpy(result->updated_reverse_path, req->reverse_path, req->reverse_path_len * sizeof(uint32_t));
             }
             result->updated_reverse_path[result->updated_path_len - 1] = node->device_id;
 
-            /* Add route back to originator */
+            // Add route back to originator 
             if (originator_id != 0 && originator_id != node->device_id) {
-                add_route(node->routing_table, originator_id, sender_id,
-                         new_hop_count, (float)new_hop_count, get_current_timestamp());
+                add_route(node->routing_table, originator_id, sender_id, new_hop_count, (float)new_hop_count, get_current_timestamp());
             }
 
             return 2;
         }
     }
 
-    /* Check hop count limit */
+    // Check hop count limit 
     if (new_hop_count >= MAX_HOP_COUNT) {
-        result->action = -1;  /* TTL exceeded */
+        result->action = -1;  // TTL exceeded
         return -1;
     }
 
-    /* Forward the request */
+    // Forward the request 
     result->action = 0;
 
-    /* Build updated reverse path including us */
+    // Build updated reverse path including us 
     result->updated_path_len = req->reverse_path_len + 1;
     result->updated_reverse_path = malloc(sizeof(uint32_t) * result->updated_path_len);
     if (!result->updated_reverse_path) {
@@ -772,42 +761,37 @@ int handle_route_request(struct mesh_node *node, const struct route_request *req
     }
 
     if (req->reverse_path && req->reverse_path_len > 0) {
-        memcpy(result->updated_reverse_path, req->reverse_path,
-               req->reverse_path_len * sizeof(uint32_t));
+        memcpy(result->updated_reverse_path, req->reverse_path, req->reverse_path_len * sizeof(uint32_t));
     }
     result->updated_reverse_path[result->updated_path_len - 1] = node->device_id;
 
-    /* Add route back to originator through sender */
+    // Add route back to originator through sender 
     if (originator_id != 0 && originator_id != node->device_id) {
-        add_route(node->routing_table, originator_id, sender_id,
-                 new_hop_count, (float)new_hop_count, get_current_timestamp());
+        add_route(node->routing_table, originator_id, sender_id, new_hop_count, (float)new_hop_count, get_current_timestamp());
     }
 
     return 0;
 }
 
-int create_route_reply(struct mesh_node *node, const uint32_t request_id,
-                      const uint32_t *reverse_path, const uint8_t reverse_path_len,
-                      struct route_reply *reply_out) {
+int create_route_reply(struct mesh_node *node, const uint32_t request_id, const uint32_t *reverse_path, const uint8_t reverse_path_len, struct route_reply *reply_out) {
     if (!node || !reverse_path || reverse_path_len < 1 || !reply_out) return -1;
 
     reply_out->request_id = request_id;
     reply_out->route_cost = reverse_path_len - 1;  /* Number of hops */
     reply_out->forward_path_len = reverse_path_len;
 
-    /* Allocate forward path */
+    // Allocate forward path 
     reply_out->forward_path = malloc(sizeof(uint32_t) * reverse_path_len);
     if (!reply_out->forward_path) return -1;
 
-    /* Forward path is the same as reverse path (originator -> destination) */
-    /* The reverse path was built in order: [originator, hop1, hop2, ..., destination] */
+    // Forward path is the same as reverse path (originator -> destination) 
+    // The reverse path was built in order: [originator, hop1, hop2, ..., destination] 
     memcpy(reply_out->forward_path, reverse_path, reverse_path_len * sizeof(uint32_t));
 
     return 0;
 }
 
-int handle_route_reply(struct mesh_node *node, const struct route_reply *reply,
-                      const uint32_t sender_id, struct route_reply_result *result) {
+int handle_route_reply(struct mesh_node *node, const struct route_reply *reply, const uint32_t sender_id, struct route_reply_result *result) {
     if (!node || !reply || !result) return -1;
 
     memset(result, 0, sizeof(*result));
@@ -819,7 +803,7 @@ int handle_route_reply(struct mesh_node *node, const struct route_reply *reply,
         return -1;
     }
 
-    /* Find our position in the forward path */
+    // Find our position in the forward path 
     int our_position = -1;
     for (uint8_t i = 0; i < reply->forward_path_len; i++) {
         if (reply->forward_path[i] == node->device_id) {
@@ -829,16 +813,16 @@ int handle_route_reply(struct mesh_node *node, const struct route_reply *reply,
     }
 
     if (our_position < 0) {
-        /* We're not in the path - this reply is not for us */
+        // We're not in the path - this reply is not for us 
         result->action = -1;
         return -1;
     }
 
-    /* Add route to the destination (last node in forward path) */
+    // Add route to the destination (last node in forward path) 
     const uint32_t destination_id = reply->forward_path[reply->forward_path_len - 1];
 
     if (destination_id != node->device_id && our_position < reply->forward_path_len - 1) {
-        /* Next hop toward destination */
+        // Next hop toward destination 
         const uint32_t next_hop_to_dest = reply->forward_path[our_position + 1];
         const uint8_t hops_to_dest = reply->forward_path_len - our_position - 1;
         const float cost = (float)hops_to_dest;
@@ -847,24 +831,24 @@ int handle_route_reply(struct mesh_node *node, const struct route_reply *reply,
                  hops_to_dest, cost, get_current_timestamp());
     }
 
-    /* Check if we are the originator (first node in path) */
+    // Check if we are the originator (first node in path) 
     if (our_position == 0) {
-        /* We originated this request - route discovery complete */
+        // We originated this request - route discovery complete 
         result->action = 1;
 
-        /* Remove from pending requests */
+        // Remove from pending requests 
         remove_pending_route_request(node, reply->request_id);
 
         return 1;
     }
 
-    /* We are an intermediate node - forward toward originator */
+    // We are an intermediate node - forward toward originator 
     result->action = 0;
 
-    /* Next hop toward originator is the previous node in path */
+    // Next hop toward originator is the previous node in path 
     result->next_hop = reply->forward_path[our_position - 1];
 
-    /* Copy forward path for forwarding */
+    // Copy forward path for forwarding 
     result->forward_path_len = reply->forward_path_len;
     result->forward_path = malloc(sizeof(uint32_t) * reply->forward_path_len);
     if (!result->forward_path) {
@@ -877,11 +861,10 @@ int handle_route_reply(struct mesh_node *node, const struct route_reply *reply,
     return 0;
 }
 
-int add_pending_route_request(struct mesh_node *node, const uint32_t request_id,
-                              const uint32_t destination_id) {
+int add_pending_route_request(struct mesh_node *node, const uint32_t request_id, const uint32_t destination_id) {
     if (!node) return -1;
 
-    /* Check if already tracking this destination */
+    // Check if already tracking this destination 
     for (size_t i = 0; i < node->pending_count; i++) {
         if (node->pending_requests[i].is_active &&
             node->pending_requests[i].destination_id == destination_id) {
@@ -889,10 +872,10 @@ int add_pending_route_request(struct mesh_node *node, const uint32_t request_id,
         }
     }
 
-    /* Find empty slot */
+    // Find empty slot 
     size_t index = node->pending_count;
     if (node->pending_count >= MAX_PENDING_REQUESTS) {
-        /* Find inactive slot or oldest entry */
+        // Find inactive slot or oldest entry 
         uint32_t oldest_time = UINT32_MAX;
         for (size_t i = 0; i < MAX_PENDING_REQUESTS; i++) {
             if (!node->pending_requests[i].is_active) {
@@ -930,8 +913,7 @@ int remove_pending_route_request(struct mesh_node *node, const uint32_t request_
     return -1;
 }
 
-size_t check_route_request_timeouts(struct mesh_node *node, const uint32_t current_time,
-                                   uint32_t *timed_out_destinations, const size_t max_count) {
+size_t check_route_request_timeouts(struct mesh_node *node, const uint32_t current_time, uint32_t *timed_out_destinations, const size_t max_count) {
     if (!node || !timed_out_destinations || max_count == 0) return 0;
 
     size_t timeout_count = 0;
@@ -943,12 +925,12 @@ size_t check_route_request_timeouts(struct mesh_node *node, const uint32_t curre
         const uint32_t elapsed = current_time - pending->timestamp;
         if (elapsed >= ROUTE_REQUEST_TIMEOUT_SECONDS) {
             if (pending->retries < MAX_ROUTE_REQUEST_RETRIES) {
-                /* Mark for retry */
+                // Mark for retry 
                 pending->retries++;
                 pending->timestamp = current_time;
                 timed_out_destinations[timeout_count++] = pending->destination_id;
             } else {
-                /* Max retries exceeded - give up */
+                // Max retries exceeded - give up 
                 pending->is_active = 0;
             }
         }
@@ -957,8 +939,7 @@ size_t check_route_request_timeouts(struct mesh_node *node, const uint32_t curre
     return timeout_count;
 }
 
-size_t get_connected_neighbors(struct mesh_node *node, uint32_t *neighbors,
-                               const size_t max_count, const uint32_t exclude_id) {
+size_t get_connected_neighbors(struct mesh_node *node, uint32_t *neighbors, const size_t max_count, const uint32_t exclude_id) {
     if (!node || !node->connection_table || !neighbors || max_count == 0) return 0;
 
     size_t count = 0;
@@ -973,17 +954,13 @@ size_t get_connected_neighbors(struct mesh_node *node, uint32_t *neighbors,
     return count;
 }
 
-/* ========================================================================== */
-/* Packet Forwarding Engine Implementation                                     */
-/* ========================================================================== */
-
 struct pending_packet_queue *create_pending_packet_queue(void) {
     struct pending_packet_queue *queue = malloc(sizeof(struct pending_packet_queue));
     if (!queue) return NULL;
 
     memset(queue->packets, 0, sizeof(queue->packets));
     queue->count = 0;
-    queue->next_sequence_number = 1;  /* Start from 1, 0 is reserved for invalid */
+    queue->next_sequence_number = 1;  // Start from 1, 0 is reserved for invalid
 
     return queue;
 }
@@ -991,7 +968,7 @@ struct pending_packet_queue *create_pending_packet_queue(void) {
 void free_pending_packet_queue(struct pending_packet_queue *queue) {
     if (!queue) return;
 
-    /* Free all pending packet data */
+    // Free all pending packet data 
     for (size_t i = 0; i < MAX_PENDING_PACKETS; i++) {
         if (queue->packets[i].packet_data) {
             free(queue->packets[i].packet_data);
@@ -1009,13 +986,13 @@ uint16_t queue_packet_for_transmission(struct pending_packet_queue *queue,
                                        const uint32_t current_time_ms) {
     if (!queue || !packet_data || packet_len == 0) return 0;
 
-    /* Find empty slot */
+    // Find empty slot 
     struct pending_packet *slot = NULL;
     for (size_t i = 0; i < MAX_PENDING_PACKETS; i++) {
         if (queue->packets[i].state == PACKET_STATE_EMPTY ||
             queue->packets[i].state == PACKET_STATE_DELIVERED ||
             queue->packets[i].state == PACKET_STATE_FAILED) {
-            /* Clear old data if present */
+            // Clear old data if present 
             if (queue->packets[i].packet_data) {
                 free(queue->packets[i].packet_data);
             }
@@ -1025,18 +1002,18 @@ uint16_t queue_packet_for_transmission(struct pending_packet_queue *queue,
     }
 
     if (!slot) {
-        /* No empty slot available */
+        // No empty slot available 
         return 0;
     }
 
-    /* Allocate and copy packet data */
+    // Allocate and copy packet data 
     slot->packet_data = malloc(packet_len);
     if (!slot->packet_data) return 0;
     memcpy(slot->packet_data, packet_data, packet_len);
 
-    /* Initialize packet entry */
+    // Initialize packet entry 
     slot->sequence_number = queue->next_sequence_number++;
-    if (queue->next_sequence_number == 0) queue->next_sequence_number = 1;  /* Skip 0 */
+    if (queue->next_sequence_number == 0) queue->next_sequence_number = 1;
     slot->destination_id = destination_id;
     slot->packet_len = packet_len;
     slot->created_timestamp = current_time_ms;
@@ -1061,12 +1038,12 @@ int acknowledge_packet(struct pending_packet_queue *queue,
     struct pending_packet *packet = get_pending_packet(queue, sequence_number);
     if (!packet) return -1;
 
-    /* Update route cost on successful acknowledgement */
+    // Update route cost on successful acknowledgement 
     if (routing_table && conn_table) {
         update_route_cost_on_ack(routing_table, conn_table, packet->destination_id, sender_id, 1);
     }
 
-    /* Mark as delivered */
+    // Mark as delivered 
     packet->state = PACKET_STATE_DELIVERED;
 
     return 0;
@@ -1090,20 +1067,19 @@ int associate_route_request_with_packets(struct pending_packet_queue *queue,
     return count;
 }
 
-size_t handle_route_discovery_complete(struct pending_packet_queue *queue,
-                                       const uint32_t destination_id) {
+size_t handle_route_discovery_complete(struct pending_packet_queue *queue, const uint32_t destination_id) {
     if (!queue) return 0;
 
     size_t count = 0;
-    const uint32_t current_time = get_current_timestamp() * 1000;  /* Convert to ms */
+    const uint32_t current_time = get_current_timestamp() * 1000;
 
     for (size_t i = 0; i < MAX_PENDING_PACKETS; i++) {
         struct pending_packet *packet = &queue->packets[i];
         if (packet->state == PACKET_STATE_AWAITING_ROUTE &&
             packet->destination_id == destination_id) {
-            /* Mark as ready for transmission */
+            // Mark as ready for transmission 
             packet->state = PACKET_STATE_AWAITING_ACK;
-            packet->next_retry_timestamp = current_time;  /* Send immediately */
+            packet->next_retry_timestamp = current_time;
             packet->retry_interval_ms = INITIAL_RETRANSMIT_INTERVAL_MS;
             packet->retry_count = 0;
             count++;
@@ -1113,8 +1089,7 @@ size_t handle_route_discovery_complete(struct pending_packet_queue *queue,
     return count;
 }
 
-int handle_route_discovery_failed(struct pending_packet_queue *queue,
-                                  const uint32_t destination_id) {
+int handle_route_discovery_failed(struct pending_packet_queue *queue, const uint32_t destination_id) {
     if (!queue) return -1;
 
     int count = 0;
@@ -1130,10 +1105,7 @@ int handle_route_discovery_failed(struct pending_packet_queue *queue,
     return count;
 }
 
-size_t check_retransmission_timeouts(struct pending_packet_queue *queue,
-                                     const uint32_t current_time_ms,
-                                     uint16_t *retry_sequence_numbers,
-                                     const size_t max_count) {
+size_t check_retransmission_timeouts(struct pending_packet_queue *queue, const uint32_t current_time_ms, uint16_t *retry_sequence_numbers, const size_t max_count) {
     if (!queue || !retry_sequence_numbers || max_count == 0) return 0;
 
     size_t retry_count = 0;
@@ -1143,15 +1115,15 @@ size_t check_retransmission_timeouts(struct pending_packet_queue *queue,
 
         if (packet->state != PACKET_STATE_AWAITING_ACK) continue;
 
-        /* Check if retry time has been reached */
+        // Check if retry time has been reached 
         if (current_time_ms >= packet->next_retry_timestamp) {
             if (packet->retry_count >= MAX_RETRANSMISSION_RETRIES) {
-                /* Max retries exceeded - mark as failed */
+                // Max retries exceeded - mark as failed 
                 packet->state = PACKET_STATE_FAILED;
                 continue;
             }
 
-            /* Mark for retry */
+            // Mark for retry 
             retry_sequence_numbers[retry_count++] = packet->sequence_number;
         }
     }
@@ -1159,8 +1131,7 @@ size_t check_retransmission_timeouts(struct pending_packet_queue *queue,
     return retry_count;
 }
 
-struct pending_packet *get_pending_packet(struct pending_packet_queue *queue,
-                                          const uint16_t sequence_number) {
+struct pending_packet *get_pending_packet(struct pending_packet_queue *queue, const uint16_t sequence_number) {
     if (!queue || sequence_number == 0) return NULL;
 
     for (size_t i = 0; i < MAX_PENDING_PACKETS; i++) {
@@ -1178,7 +1149,7 @@ void update_retry_timing(struct pending_packet *packet, const uint32_t current_t
 
     packet->retry_count++;
 
-    /* Exponential backoff with cap */
+    // Exponential backoff with cap TCP
     packet->retry_interval_ms *= RETRANSMIT_BACKOFF_FACTOR;
     if (packet->retry_interval_ms > MAX_RETRANSMIT_INTERVAL_MS) {
         packet->retry_interval_ms = MAX_RETRANSMIT_INTERVAL_MS;
@@ -1224,71 +1195,64 @@ size_t cleanup_pending_packets(struct pending_packet_queue *queue) {
     return cleaned;
 }
 
-int make_forwarding_decision(struct mesh_node *node,
-                             const uint32_t destination_id,
-                             uint8_t *ttl,
-                             struct forwarding_decision *decision) {
+int make_forwarding_decision(struct mesh_node *node, const uint32_t destination_id, uint8_t *ttl, struct forwarding_decision *decision) {
     if (!node || !ttl || !decision) return -1;
 
     memset(decision, 0, sizeof(*decision));
 
-    /* Check if packet is for us */
+    // Check if packet is for us 
     if (should_process_locally(node, destination_id)) {
-        decision->action = 1;  /* Local delivery */
+        decision->action = 1;
         return 0;
     }
 
-    /* Check TTL */
+    // Check TTL 
     if (*ttl <= 0) {
         decision->action = -1;
-        decision->error_code = 0x03;  /* TTL Expired */
+        decision->error_code = 0x03;
         return -1;
     }
 
-    /* Decrement TTL */
+    // Decrement TTL 
     (*ttl)--;
 
-    /* Look up route to destination */
-    struct routing_entry *route = find_best_route(node->routing_table, destination_id);
+    // Look up route to destination 
+    const struct routing_entry * route = find_best_route(node->routing_table, destination_id);
     if (route && route->is_valid) {
-        decision->action = 0;  /* Forward to next hop */
+        decision->action = 0;
         decision->next_hop = route->next_hop;
         return 0;
     }
 
-    /* No route found - check if we already have a pending route discovery */
+    // No route found - check if we already have a pending route discovery 
     if (has_pending_route_discovery(node, destination_id)) {
-        decision->action = -2;  /* Already discovering route */
+        decision->action = -2;
         decision->request_id = find_pending_route_request_for_dest(node, destination_id);
         return 0;
     }
 
-    /* Need to initiate route discovery */
-    decision->action = -2;  /* Need route discovery */
-    decision->error_code = 0x01;  /* Route not found */
+    // Need to initiate route discovery 
+    decision->action = -2;
+    decision->error_code = 0x01;
 
     return 0;
 }
 
-int update_route_cost_on_ack(struct routing_table *table,
-                             struct connection_table *conn_table,
-                             const uint32_t destination_id,
-                             const uint32_t next_hop,
-                             const int success) {
+int update_route_cost_on_ack(struct routing_table *table, struct connection_table *conn_table, const uint32_t destination_id, const uint32_t next_hop, const int success) {
     if (!table) return -1;
 
     struct routing_entry *route = find_route(table, destination_id);
     if (!route) return -1;
 
-    /* Update link quality for the next hop connection */
+    // Update link quality for the next hop connection 
     if (conn_table) {
         update_link_quality(conn_table, next_hop, success ? 1 : 0);
 
-        /* Recalculate route cost based on updated link quality */
-        struct connection_entry *conn = find_connection(conn_table, next_hop);
+        // Recalculate route cost based on updated link quality 
+        const struct connection_entry * conn = find_connection(conn_table, next_hop);
         if (conn && conn->link_quality > 0.0f) {
-            /* Route cost is affected by link quality */
-            /* New cost = hop_count + (1/link_quality - 1) as adjustment */
+            // Route cost is affected by link quality 
+            // New cost = hop_count + (1/link_quality - 1) as adjustment 
             float new_cost = (float)route->hop_count;
             if (conn->link_quality < 1.0f) {
                 new_cost += (1.0f / conn->link_quality) - 1.0f;
