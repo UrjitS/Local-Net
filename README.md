@@ -77,3 +77,9 @@ To run the protocol implementation test cases use the command ```./protocol_test
 
 #### Running Routing Implementation Test Cases
 To run the routing implementation test cases use the command ```./routing_tests```
+
+#### Running Mesh Routing Test Cases
+To run the mesh routing test cases use the command ```./mesh_routing_tests```
+
+#### Running Encryption Test Cases
+To run the end-to-end encryption test cases use the command ```./encryption_tests```

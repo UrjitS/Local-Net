@@ -7,7 +7,7 @@
 /*
     Free dynamic memory from a Data Packet
 */
-static void free_parsed_packet(struct packet *p) {
+static void free_parsed_packet(struct packet * p) {
     free(p->header);
     free(p->network);
     free(p->payload);
@@ -18,6 +18,7 @@ static void free_parsed_packet(struct packet *p) {
     Serialize and Deserialize a Discovery Message.
 */
 static void test_discovery_roundtrip(void) {
+    printf("Testing test_discovery_roundtrip\n");
     const struct discovery_message out = { .available_connections = 5, .timestamp = 0x12345678 };
     uint8_t buf[16];
     const size_t n = serialize_discovery(&out, buf, sizeof(buf));
@@ -32,6 +33,7 @@ static void test_discovery_roundtrip(void) {
     Serialize and Deserialize a Route Request Message.
 */
 static void test_route_request_roundtrip(void) {
+    printf("Testing test_route_request_roundtrip\n");
     uint32_t path[] = { 0x11111111, 0x22222222, 0x33333333 };
     const struct route_request out = {
         .request_id = 0x0000000A,
@@ -59,6 +61,7 @@ static void test_route_request_roundtrip(void) {
     Serialize and Deserialize a Route Reply Message.
 */
 static void test_route_reply_roundtrip(void) {
+    printf("Testing test_route_reply_roundtrip\n");
     uint32_t path[] = { 0x11111111, 0x22222222 };
     const struct route_reply out = {
         .request_id = 0x0000000B,
@@ -84,6 +87,7 @@ static void test_route_reply_roundtrip(void) {
     Serialize and Deserialize a HeartBeat Message.
 */
 static void test_heartbeat_roundtrip(void) {
+    printf("Testing test_heartbeat_roundtrip\n");
     const struct heartbeat out = { .device_status = 2, .active_connection_number = 4, .timestamp = 0x0000000A };
     uint8_t buf[16];
     const size_t n = serialize_heartbeat(&out, buf, sizeof(buf));
@@ -99,6 +103,7 @@ static void test_heartbeat_roundtrip(void) {
     Serialize and Deserialize an Ack Message.
 */
 static void test_acknowledgement_roundtrip(void) {
+    printf("Testing test_acknowledgement_roundtrip\n");
     uint8_t received[] = { 0, 2, 4, 6 };
     const struct acknowledgement out = {
         .sequence_number = 0x0001,
@@ -122,7 +127,8 @@ static void test_acknowledgement_roundtrip(void) {
     Serialize and Deserialize a Key Exchange Message.
 */
 static void test_key_exchange_roundtrip(void) {
-    struct key_exchange_message out;
+    printf("Testing test_key_exchange_roundtrip\n");
+    struct key_exchange_message out = {0};
     for (int i = 0; i < 32; ++i) out.public_key[i] = (uint8_t)i;
     out.timestamp = 0x0000000A;
     uint8_t buf[40];
@@ -138,11 +144,12 @@ static void test_key_exchange_roundtrip(void) {
     Serialize and Deserialize a Packet.
 */
 static void test_packet_roundtrip(void) {
-    struct packet out_pkt;
-    struct header hdr;
-    struct network net;
-    struct security sec;
-    uint8_t payload[50];
+    printf("Testing test_packet_roundtrip\n");
+    struct packet out_pkt = {0};
+    struct header hdr = {0};
+    struct network net = {0};
+    struct security sec = {0};
+    uint8_t payload[50] = {0};
     for (size_t i = 0; i < sizeof(payload); i++) payload[i] = (uint8_t)(i + 1);
 
     hdr.protocol_version = 1;
@@ -191,19 +198,20 @@ static void test_packet_roundtrip(void) {
     Test Serialize and Deserialize for a fragmented packet.
 */
 static void test_fragmentation_and_reassembly(void) {
+    printf("Testing test_fragmentation_and_reassembly\n");
     const size_t payload_len = 450; // > 200 to force fragmentation into 3 fragments
-    uint8_t *payload = malloc(payload_len);
+    uint8_t * payload = malloc(payload_len);
     assert(payload);
     for (size_t i = 0; i < payload_len; i++) payload[i] = (uint8_t)(i & 0xFF);
 
-    struct packet **fragments = NULL;
+    struct packet * * fragments = NULL;
     size_t fragment_count = 0;
     const int r = fragment_payload(payload, payload_len, &fragments, &fragment_count, 0x0001, 0x0002, 0xABCD);
     assert(r == 0);
     assert(fragment_count == 3);
 
     // Create fragment buffer and add fragments out of order
-    struct fragment_buffer *fb = create_fragment_buffer(0xABCD, (uint8_t)fragment_count);
+    struct fragment_buffer * fb = create_fragment_buffer(0xABCD, (uint8_t)fragment_count);
     assert(fb != NULL);
 
     // add fragment 2, then 0, then 1 to test ordering
@@ -213,7 +221,7 @@ static void test_fragmentation_and_reassembly(void) {
 
     assert(is_complete(fb) == 1);
 
-    uint8_t *reassembled = malloc(payload_len);
+    uint8_t * reassembled = malloc(payload_len);
     assert(reassembled);
     const size_t got = reassemble_payload(fb, reassembled, payload_len);
     assert(got == payload_len);

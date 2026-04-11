@@ -1,40 +1,38 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
-#include <string.h>
 #include "utils.h"
 #include "../routing/routing.h"
 #include "../protocol/protocol.h"
 
 // Test Node Creation 
 void test_node_creation() {
-    printf("Testing node creation...\n");
+    printf("Testing test_node_creation\n");
 
-    struct mesh_node *edge_node = create_mesh_node(0x123456, EDGE_NODE);
+    struct mesh_node * edge_node = create_mesh_node(0x123456, EDGE_NODE);
     assert(edge_node != NULL);
     assert(edge_node->device_id == 0x123456);
     assert(edge_node->node_type == EDGE_NODE);
     assert(edge_node->max_connections == MAX_CONNECTIONS_EDGE);
 
-    struct mesh_node *full_node = create_mesh_node(0x123457, FULL_NODE);
+    struct mesh_node * full_node = create_mesh_node(0x123457, FULL_NODE);
     assert(full_node != NULL);
     assert(full_node->max_connections == MAX_CONNECTIONS_FULL);
 
-    struct mesh_node *gateway_node = create_mesh_node(0x123458, GATEWAY_NODE);
+    struct mesh_node * gateway_node = create_mesh_node(0x123458, GATEWAY_NODE);
     assert(gateway_node != NULL);
     assert(gateway_node->max_connections == MAX_CONNECTIONS_GATEWAY);
 
     free_mesh_node(edge_node);
     free_mesh_node(full_node);
     free_mesh_node(gateway_node);
-    printf("Test passed: Node creation\n\n");
 }
 
 // Test Connection Management 
 void test_connection_management() {
-    printf("Testing connection management...\n");
+    printf("Testing test_connection_management\n");
 
-    struct connection_table *table = create_connection_table();
+    struct connection_table * table = create_connection_table();
     assert(table != NULL);
     assert(table->count == 0);
 
@@ -44,7 +42,7 @@ void test_connection_management() {
     assert(table->count == 1);
 
     // Find connection
-    const struct connection_entry *entry = find_connection(table, 0x111111);
+    const struct connection_entry * entry = find_connection(table, 0x111111);
     assert(entry != NULL);
     assert(entry->neighbor_id == 0x111111);
     assert(entry->rssi == -60);
@@ -79,14 +77,13 @@ void test_connection_management() {
     assert(table->count == 0);
 
     free_connection_table(table);
-    printf("Test passed: Connection management\n\n");
 }
 
 // Test Routing Table 
 void test_routing_table() {
-    printf("Testing routing table...\n");
+    printf("Testing test_routing_table\n");
 
-    struct routing_table *table = create_routing_table();
+    struct routing_table * table = create_routing_table();
     assert(table != NULL);
     assert(table->count == 0);
 
@@ -98,7 +95,7 @@ void test_routing_table() {
     assert(table->count == 1);
 
     // Find route
-    const struct routing_entry *entry = find_route(table, 0x222222);
+    const struct routing_entry * entry = find_route(table, 0x222222);
     assert(entry != NULL);
     assert(entry->destination_id == 0x222222);
     assert(entry->next_hop == 0x111111);
@@ -119,7 +116,7 @@ void test_routing_table() {
     assert(entry->next_hop == 0x333333);  // Should be the better route
 
     // Test find_best_route
-    const struct routing_entry *best = find_best_route(table, 0x222222);
+    const struct routing_entry * best = find_best_route(table, 0x222222);
     assert(best != NULL);
     assert(best->route_cost == 1.8f);
 
@@ -129,18 +126,17 @@ void test_routing_table() {
     assert(table->count == 0);
 
     free_routing_table(table);
-    printf("Test passed: Routing table\n\n");
 }
 
 // Test Route Discovery 
 void test_route_discovery() {
-    printf("Testing route discovery...\n");
+    printf("Testing test_route_discovery\n");
 
-    struct mesh_node *node = create_mesh_node(0x123456, FULL_NODE);
+    struct mesh_node * node = create_mesh_node(0x123456, FULL_NODE);
     assert(node != NULL);
 
     // Initiate route discovery
-    uint32_t *reverse_path = NULL;
+    uint32_t * reverse_path = NULL;
     uint8_t path_len = 0;
     const int request_id = initiate_route_discovery(node, 0x654321, &reverse_path, &path_len);
     assert(request_id > 0);
@@ -165,20 +161,18 @@ void test_route_discovery() {
 
     free(reverse_path);
     free_mesh_node(node);
-    printf("Test passed: Route discovery\n\n");
 }
 
 // Test Enhanced Route Request Creation 
 void test_create_route_request() {
-    printf("Testing create_route_request...\n");
+    printf("Testing test_create_route_request\n");
 
-    struct mesh_node *node = create_mesh_node(0xABCDEF, FULL_NODE);
+    struct mesh_node * node = create_mesh_node(0xABCDEF, FULL_NODE);
     assert(node != NULL);
 
-    struct route_request req;
-    memset(&req, 0, sizeof(req));
+    struct route_request req = {0};
 
-    int result = create_route_request(node, 0x123456, &req);
+    const int result = create_route_request(node, 0x123456, &req);
     assert(result > 0);  // Returns request_id on success
     assert(req.destination_id == 0x123456);
     assert(req.hop_count == 0);
@@ -193,15 +187,14 @@ void test_create_route_request() {
 
     free(req.reverse_path);
     free_mesh_node(node);
-    printf("Test passed: Create route request\n\n");
 }
 
 // Test Handle Route Request - Destination Case 
 void test_handle_route_request_destination() {
-    printf("Testing handle_route_request (destination case)...\n");
+    printf("Testing test_handle_route_request_destination\n");
 
     // Create destination node
-    struct mesh_node *dest_node = create_mesh_node(0x654321, FULL_NODE);
+    struct mesh_node * dest_node = create_mesh_node(0x654321, FULL_NODE);
     assert(dest_node != NULL);
 
     // Build incoming route request
@@ -218,7 +211,7 @@ void test_handle_route_request_destination() {
     req.reverse_path[2] = 0x222222;  // Sender
 
     struct route_request_result result;
-    int action = handle_route_request(dest_node, &req, 0x222222, &result);
+    const int action = handle_route_request(dest_node, &req, 0x222222, &result);
 
     assert(action == 1);  // We are destination
     assert(result.action == 1);
@@ -227,21 +220,20 @@ void test_handle_route_request_destination() {
     assert(result.updated_reverse_path[3] == dest_node->device_id);
 
     // Check route to originator was added
-    struct routing_entry *route = find_route(dest_node->routing_table, 0xABCDEF);
+    const struct routing_entry * route = find_route(dest_node->routing_table, 0xABCDEF);
     assert(route != NULL);
     assert(route->next_hop == 0x222222);  // Through sender
 
     free(req.reverse_path);
     if (result.updated_reverse_path) free(result.updated_reverse_path);
     free_mesh_node(dest_node);
-    printf("Test passed: Handle route request (destination)\n\n");
 }
 
 // Test Handle Route Request - Intermediate Node Case 
 void test_handle_route_request_intermediate() {
-    printf("Testing handle_route_request (intermediate case)...\n");
+    printf("Testing test_handle_route_request_intermediate\n");
 
-    struct mesh_node *node = create_mesh_node(0x222222, FULL_NODE);
+    struct mesh_node * node = create_mesh_node(0x222222, FULL_NODE);
     assert(node != NULL);
 
     struct route_request req = {
@@ -269,14 +261,13 @@ void test_handle_route_request_intermediate() {
     free(req.reverse_path);
     if (result.updated_reverse_path) free(result.updated_reverse_path);
     free_mesh_node(node);
-    printf("Test passed: Handle route request (intermediate)\n\n");
 }
 
 // Test Handle Route Request - Cached Route Case 
 void test_handle_route_request_cached() {
-    printf("Testing handle_route_request (cached route case)...\n");
+    printf("Testing test_handle_route_request_cached\n");
 
-    struct mesh_node *node = create_mesh_node(0x222222, FULL_NODE);
+    struct mesh_node * node = create_mesh_node(0x222222, FULL_NODE);
     assert(node != NULL);
 
     // Add a cached route to destination
@@ -294,7 +285,7 @@ void test_handle_route_request_cached() {
     req.reverse_path[1] = 0x111111;
 
     struct route_request_result result;
-    int action = handle_route_request(node, &req, 0x111111, &result);
+    const int action = handle_route_request(node, &req, 0x111111, &result);
 
     assert(action == 2);  // Cached route reply
     assert(result.action == 2);
@@ -302,21 +293,20 @@ void test_handle_route_request_cached() {
     free(req.reverse_path);
     if (result.updated_reverse_path) free(result.updated_reverse_path);
     free_mesh_node(node);
-    printf("Test passed: Handle route request (cached)\n\n");
 }
 
 // Test Create Route Reply 
 void test_create_route_reply() {
-    printf("Testing create_route_reply...\n");
+    printf("Testing test_create_route_reply\n");
 
-    struct mesh_node *node = create_mesh_node(0x654321, FULL_NODE);
+    struct mesh_node * node = create_mesh_node(0x654321, FULL_NODE);
     assert(node != NULL);
 
     // Reverse path: originator -> intermediate -> destination
-    uint32_t reverse_path[] = {0xABCDEF, 0x111111, 0x654321};
+    const uint32_t reverse_path[] = {0xABCDEF, 0x111111, 0x654321};
 
-    struct route_reply reply;
-    int result = create_route_reply(node, 0x12345678, reverse_path, 3, &reply);
+    struct route_reply reply = {0};
+    const int result = create_route_reply(node, 0x12345678, reverse_path, 3, &reply);
 
     assert(result == 0);
     assert(reply.request_id == 0x12345678);
@@ -330,14 +320,13 @@ void test_create_route_reply() {
 
     free(reply.forward_path);
     free_mesh_node(node);
-    printf("Test passed: Create route reply\n\n");
 }
 
 // Test Handle Route Reply - Originator Case 
 void test_handle_route_reply_originator() {
-    printf("Testing handle_route_reply (originator case)...\n");
+    printf("Testing test_handle_route_reply_originator\n");
 
-    struct mesh_node *node = create_mesh_node(0xABCDEF, FULL_NODE);
+    struct mesh_node * node = create_mesh_node(0xABCDEF, FULL_NODE);
     assert(node != NULL);
 
     // Add pending request
@@ -356,13 +345,13 @@ void test_handle_route_reply_originator() {
     reply.forward_path[2] = 0x654321;  // Destination
 
     struct route_reply_result result;
-    int action = handle_route_reply(node, &reply, 0x111111, &result);
+    const int action = handle_route_reply(node, &reply, 0x111111, &result);
 
     assert(action == 1);  // We are originator, done
     assert(result.action == 1);
 
     // Check route to destination was added
-    struct routing_entry *route = find_route(node->routing_table, 0x654321);
+    const struct routing_entry * route = find_route(node->routing_table, 0x654321);
     assert(route != NULL);
     assert(route->next_hop == 0x111111);
     assert(route->hop_count == 2);
@@ -380,14 +369,13 @@ void test_handle_route_reply_originator() {
     free(reply.forward_path);
     if (result.forward_path) free(result.forward_path);
     free_mesh_node(node);
-    printf("Test passed: Handle route reply (originator)\n\n");
 }
 
 // Test Handle Route Reply - Intermediate Node Case 
 void test_handle_route_reply_intermediate() {
-    printf("Testing handle_route_reply (intermediate case)...\n");
+    printf("Testing test_handle_route_reply_intermediate\n");
 
-    struct mesh_node *node = create_mesh_node(0x111111, FULL_NODE);
+    struct mesh_node * node = create_mesh_node(0x111111, FULL_NODE);
     assert(node != NULL);
 
     // Forward path: originator -> us -> destination
@@ -403,14 +391,14 @@ void test_handle_route_reply_intermediate() {
     reply.forward_path[2] = 0x654321;  // Destination
 
     struct route_reply_result result;
-    int action = handle_route_reply(node, &reply, 0x654321, &result);
+    const int action = handle_route_reply(node, &reply, 0x654321, &result);
 
     assert(action == 0);  // Forward to originator
     assert(result.action == 0);
     assert(result.next_hop == 0xABCDEF);  // Previous node in path
 
     // Check route to destination was added
-    struct routing_entry *route = find_route(node->routing_table, 0x654321);
+    const struct routing_entry * route = find_route(node->routing_table, 0x654321);
     assert(route != NULL);
     assert(route->next_hop == 0x654321);
     assert(route->hop_count == 1);
@@ -418,14 +406,13 @@ void test_handle_route_reply_intermediate() {
     free(reply.forward_path);
     if (result.forward_path) free(result.forward_path);
     free_mesh_node(node);
-    printf("Test passed: Handle route reply (intermediate)\n\n");
 }
 
 // Test Pending Route Request Management 
 void test_pending_route_requests() {
-    printf("Testing pending route request management...\n");
+    printf("Testing test_pending_route_requests\n");
 
-    struct mesh_node *node = create_mesh_node(0x123456, FULL_NODE);
+    struct mesh_node * node = create_mesh_node(0x123456, FULL_NODE);
     assert(node != NULL);
 
     // Add pending request
@@ -450,17 +437,16 @@ void test_pending_route_requests() {
     assert(result == 0);
 
     free_mesh_node(node);
-    printf("Test passed: Pending route request management\n\n");
 }
 
 // Test Route Request Timeouts 
 void test_route_request_timeouts() {
-    printf("Testing route request timeouts...\n");
+    printf("Testing test_route_request_timeouts\n");
 
-    struct mesh_node *node = create_mesh_node(0x123456, FULL_NODE);
+    struct mesh_node * node = create_mesh_node(0x123456, FULL_NODE);
     assert(node != NULL);
 
-    uint32_t current_time = get_current_timestamp();
+    const uint32_t current_time = get_current_timestamp();
 
     // Add pending request with old timestamp
     node->pending_requests[0].request_id = 0xDDDDDDDD;
@@ -472,7 +458,7 @@ void test_route_request_timeouts() {
 
     // Check for timeouts
     uint32_t timed_out[10];
-    size_t timeout_count = check_route_request_timeouts(node, current_time, timed_out, 10);
+    const size_t timeout_count = check_route_request_timeouts(node, current_time, timed_out, 10);
 
     assert(timeout_count == 1);
     assert(timed_out[0] == 0x333333);
@@ -489,14 +475,13 @@ void test_route_request_timeouts() {
     assert(node->pending_requests[0].is_active == 0);
 
     free_mesh_node(node);
-    printf("Test passed: Route request timeouts\n\n");
 }
 
 // Test Get Connected Neighbors 
 void test_get_connected_neighbors() {
-    printf("Testing get_connected_neighbors...\n");
+    printf("Testing test_get_connected_neighbors\n");
 
-    struct mesh_node *node = create_mesh_node(0x123456, FULL_NODE);
+    struct mesh_node * node = create_mesh_node(0x123456, FULL_NODE);
     assert(node != NULL);
 
     // Add some connections
@@ -518,17 +503,16 @@ void test_get_connected_neighbors() {
     assert(neighbors[0] == 0x222222);
 
     free_mesh_node(node);
-    printf("Test passed: Get connected neighbors\n\n");
 }
 
 // Test Full Route Discovery Scenario 
 void test_full_route_discovery_scenario() {
-    printf("Testing full route discovery scenario...\n");
+    printf("Testing test_full_route_discovery_scenario\n");
 
     // Network: Node A <-> Node B <-> Node C
-    struct mesh_node *nodeA = create_mesh_node(0xAAAA, FULL_NODE);
-    struct mesh_node *nodeB = create_mesh_node(0xBBBB, FULL_NODE);
-    struct mesh_node *nodeC = create_mesh_node(0xCCCC, FULL_NODE);
+    struct mesh_node * nodeA = create_mesh_node(0xAAAA, FULL_NODE);
+    struct mesh_node * nodeB = create_mesh_node(0xBBBB, FULL_NODE);
+    struct mesh_node * nodeC = create_mesh_node(0xCCCC, FULL_NODE);
 
     // Setup connections
     add_connection(nodeA->connection_table, 0xBBBB, -60);
@@ -541,54 +525,53 @@ void test_full_route_discovery_scenario() {
     update_connection_state(nodeC->connection_table, 0xBBBB, STABLE);
 
     // Step 1: Node A initiates route discovery to Node C
-    struct route_request req;
-    memset(&req, 0, sizeof(req));
-    int request_id = create_route_request(nodeA, 0xCCCC, &req);
+    struct route_request req = {0};
+    const int request_id = create_route_request(nodeA, 0xCCCC, &req);
     assert(request_id > 0);
 
     // Step 2: Node B receives the request from A
-    struct route_request_result resultB;
-    int actionB = handle_route_request(nodeB, &req, 0xAAAA, &resultB);
+    struct route_request_result resultB = {0};
+    const int actionB = handle_route_request(nodeB, &req, 0xAAAA, &resultB);
     assert(actionB == 0);  // Forward
     assert(resultB.updated_path_len == 2);
 
     // Step 3: Node C receives the request from B
-    struct route_request reqToC = {
+    const struct route_request reqToC = {
         .request_id = req.request_id,
         .destination_id = 0xCCCC,
         .hop_count = resultB.hop_count,
         .reverse_path_len = resultB.updated_path_len,
         .reverse_path = resultB.updated_reverse_path
     };
-    struct route_request_result resultC;
-    int actionC = handle_route_request(nodeC, &reqToC, 0xBBBB, &resultC);
+    struct route_request_result resultC = {0};
+    const int actionC = handle_route_request(nodeC, &reqToC, 0xBBBB, &resultC);
     assert(actionC == 1);  // We are destination
 
     // Step 4: Node C creates route reply
-    struct route_reply reply;
-    int replyResult = create_route_reply(nodeC, req.request_id,
+    struct route_reply reply = {0};
+    const int replyResult = create_route_reply(nodeC, req.request_id,
                                          resultC.updated_reverse_path,
                                          resultC.updated_path_len, &reply);
     assert(replyResult == 0);
     assert(reply.forward_path_len == 3);  // A -> B -> C
 
     // Step 5: Node B receives the reply
-    struct route_reply_result replyResultB;
-    int replyActionB = handle_route_reply(nodeB, &reply, 0xCCCC, &replyResultB);
+    struct route_reply_result replyResultB = {0};
+    const int replyActionB = handle_route_reply(nodeB, &reply, 0xCCCC, &replyResultB);
     assert(replyActionB == 0);  // Forward to A
 
     // Node B should now have route to C
-    struct routing_entry *routeBC = find_route(nodeB->routing_table, 0xCCCC);
+    const struct routing_entry * routeBC = find_route(nodeB->routing_table, 0xCCCC);
     assert(routeBC != NULL);
     assert(routeBC->next_hop == 0xCCCC);
 
     // Step 6: Node A receives the reply
-    struct route_reply_result replyResultA;
-    int replyActionA = handle_route_reply(nodeA, &reply, 0xBBBB, &replyResultA);
+    struct route_reply_result replyResultA = {0};
+    const int replyActionA = handle_route_reply(nodeA, &reply, 0xBBBB, &replyResultA);
     assert(replyActionA == 1);  // Done
 
     // Node A should now have route to C through B
-    struct routing_entry *routeAC = find_route(nodeA->routing_table, 0xCCCC);
+    const struct routing_entry * routeAC = find_route(nodeA->routing_table, 0xCCCC);
     assert(routeAC != NULL);
     assert(routeAC->next_hop == 0xBBBB);
     assert(routeAC->hop_count == 2);
@@ -604,15 +587,13 @@ void test_full_route_discovery_scenario() {
     free_mesh_node(nodeA);
     free_mesh_node(nodeB);
     free_mesh_node(nodeC);
-
-    printf("Test passed: Full route discovery scenario\n\n");
 }
 
 // Test Packet Forwarding 
 void test_packet_forwarding() {
-    printf("Testing packet forwarding...\n");
+    printf("Testing test_packet_forwarding\n");
 
-    struct mesh_node *node = create_mesh_node(0x123456, FULL_NODE);
+    struct mesh_node * node = create_mesh_node(0x123456, FULL_NODE);
     assert(node != NULL);
 
     // Add a route to the routing table
@@ -647,18 +628,17 @@ void test_packet_forwarding() {
     assert(result == -2);  // No route found
 
     free_mesh_node(node);
-    printf("Test passed: Packet forwarding\n\n");
 }
 
 // Test Heartbeat and Timeouts 
 void test_heartbeat() {
-    printf("Testing heartbeat mechanism...\n");
+    printf("Testing test_heartbeat\n");
 
-    struct connection_table *table = create_connection_table();
+    struct connection_table * table = create_connection_table();
     add_connection(table, 0x111111, -60);
     update_connection_state(table, 0x111111, STABLE);
 
-    const struct connection_entry *entry = find_connection(table, 0x111111);
+    const struct connection_entry * entry = find_connection(table, 0x111111);
     assert(entry->missed_heartbeats == 0);
 
     // Increment missed heartbeats
@@ -681,14 +661,13 @@ void test_heartbeat() {
     assert(entry->state == STABLE);
 
     free_connection_table(table);
-    printf("Test passed: Heartbeats\n\n");
 }
 
 // Test Discovery Timing 
 void test_discovery_timing() {
-    printf("Testing discovery timing...\n");
+    printf("Testing test_discovery_timing\n");
 
-    struct mesh_node *node = create_mesh_node(0x123456, FULL_NODE);
+    struct mesh_node * node = create_mesh_node(0x123456, FULL_NODE);
     assert(node != NULL);
 
     const uint32_t current_time = get_current_timestamp();
@@ -717,17 +696,16 @@ void test_discovery_timing() {
     assert(should_discover == 0);
 
     free_mesh_node(node);
-    printf("Test passed: Discovery timing\n\n");
 }
 
 // Test Link Quality Calculation 
 void test_link_quality() {
-    printf("Testing link quality calculation...\n");
+    printf("Testing test_link_quality\n");
 
-    struct connection_table *table = create_connection_table();
+    struct connection_table * table = create_connection_table();
     add_connection(table, 0x111111, -60);
 
-    const struct connection_entry *entry = find_connection(table, 0x111111);
+    const struct connection_entry * entry = find_connection(table, 0x111111);
 
     // 100% success rate
     for (int i = 0; i < 50; i++) {
@@ -741,17 +719,16 @@ void test_link_quality() {
     }
 
     free_connection_table(table);
-    printf("Test passed: Link quality calculation\n\n");
 }
 
 // Test Complete Mesh Network Scenario 
 void test_mesh_network_scenario() {
-    printf("Testing complete mesh network scenario...\n");
+    printf("Testing test_mesh_network_scenario\n");
 
     // Mesh network with 3 nodes
-    struct mesh_node *node1 = create_mesh_node(0x001, FULL_NODE);
-    struct mesh_node *node2 = create_mesh_node(0x002, FULL_NODE);
-    struct mesh_node *node3 = create_mesh_node(0x003, EDGE_NODE);
+    struct mesh_node * node1 = create_mesh_node(0x001, FULL_NODE);
+    struct mesh_node * node2 = create_mesh_node(0x002, FULL_NODE);
+    struct mesh_node * node3 = create_mesh_node(0x003, EDGE_NODE);
 
 
     // Node 1 connects to Node 2
@@ -799,14 +776,13 @@ void test_mesh_network_scenario() {
     free_mesh_node(node1);
     free_mesh_node(node2);
     free_mesh_node(node3);
-    printf("Test passed: Complete mesh network scenario\n\n");
 }
 
 // Test Pending Packet Queue 
 void test_pending_packet_queue() {
-    printf("Testing pending packet queue...\n");
+    printf("Testing test_pending_packet_queue\n");
 
-    struct pending_packet_queue *queue = create_pending_packet_queue();
+    struct pending_packet_queue * queue = create_pending_packet_queue();
     assert(queue != NULL);
     assert(queue->count == 0);
     assert(queue->next_sequence_number == 1);
@@ -824,7 +800,7 @@ void test_pending_packet_queue() {
     assert(queue->count == 2);
 
     // Get pending packet
-    struct pending_packet *pkt = get_pending_packet(queue, seq1);
+    struct pending_packet * pkt = get_pending_packet(queue, seq1);
     assert(pkt != NULL);
     assert(pkt->destination_id == 0x123456);
     assert(pkt->state == PACKET_STATE_AWAITING_ACK);
@@ -841,8 +817,8 @@ void test_pending_packet_queue() {
     assert(pkt->retry_interval_ms == INITIAL_RETRANSMIT_INTERVAL_MS * RETRANSMIT_BACKOFF_FACTOR);
 
     // Test acknowledgement
-    struct routing_table *rt = create_routing_table();
-    struct connection_table *ct = create_connection_table();
+    struct routing_table * rt = create_routing_table();
+    struct connection_table * ct = create_connection_table();
     add_connection(ct, 0x111111, -60);
     acknowledge_packet(queue, rt, ct, seq1, 0x111111);
     assert(pkt->state == PACKET_STATE_DELIVERED);
@@ -854,14 +830,13 @@ void test_pending_packet_queue() {
     free_pending_packet_queue(queue);
     free_routing_table(rt);
     free_connection_table(ct);
-    printf("Test passed: Pending packet queue\n\n");
 }
 
 // Test Forwarding Decision 
 void test_forwarding_decision() {
-    printf("Testing forwarding decision...\n");
+    printf("Testing test_forwarding_decision\n");
 
-    struct mesh_node *node = create_mesh_node(0x001, FULL_NODE);
+    struct mesh_node * node = create_mesh_node(0x001, FULL_NODE);
     assert(node != NULL);
 
     // Add a route
@@ -869,7 +844,7 @@ void test_forwarding_decision() {
     add_route(node->routing_table, 0x003, 0x002, 2, 2.0f, timestamp);
 
     // Test forwarding to known destination
-    struct forwarding_decision decision;
+    struct forwarding_decision decision = {0};
     uint8_t ttl = 10;
     int result = make_forwarding_decision(node, 0x003, &ttl, &decision);
     assert(result == 0);
@@ -896,15 +871,14 @@ void test_forwarding_decision() {
     assert(decision.action == -2);  // Need route discovery
 
     free_mesh_node(node);
-    printf("Test passed: Forwarding decision\n\n");
 }
 
 // Test Route Cost Updates 
 void test_route_cost_updates() {
-    printf("Testing route cost updates...\n");
+    printf("Testing test_route_cost_updates\n");
 
-    struct routing_table *rt = create_routing_table();
-    struct connection_table *ct = create_connection_table();
+    struct routing_table * rt = create_routing_table();
+    struct connection_table * ct = create_connection_table();
     const uint32_t timestamp = get_current_timestamp();
 
     add_connection(ct, 0x002, -60);
@@ -915,7 +889,7 @@ void test_route_cost_updates() {
     assert(result == 0);
 
     // Check link quality was updated
-    const struct connection_entry *conn = find_connection(ct, 0x002);
+    const struct connection_entry * conn = find_connection(ct, 0x002);
     assert(conn != NULL);
     assert(conn->successful_packets > 0);
 
@@ -925,14 +899,13 @@ void test_route_cost_updates() {
 
     free_routing_table(rt);
     free_connection_table(ct);
-    printf("Test passed: Route cost updates\n\n");
 }
 
 // Test Route Discovery with Packet Queue 
 void test_route_discovery_with_queue() {
-    printf("Testing route discovery with packet queue...\n");
+    printf("Testing test_route_discovery_with_queue\n");
 
-    struct mesh_node *node = create_mesh_node(0x001, FULL_NODE);
+    struct mesh_node * node = create_mesh_node(0x001, FULL_NODE);
     assert(node != NULL);
     assert(node->packet_queue != NULL);
 
@@ -943,7 +916,7 @@ void test_route_discovery_with_queue() {
     assert(seq > 0);
 
     // Mark as awaiting route
-    struct pending_packet *pkt = get_pending_packet(node->packet_queue, seq);
+    struct pending_packet * pkt = get_pending_packet(node->packet_queue, seq);
     pkt->state = PACKET_STATE_AWAITING_ROUTE;
 
     // Simulate route request association
@@ -963,7 +936,6 @@ void test_route_discovery_with_queue() {
     assert(pkt->state == PACKET_STATE_FAILED);
 
     free_mesh_node(node);
-    printf("Test passed: Route discovery with packet queue\n\n");
 }
 
 int main() {

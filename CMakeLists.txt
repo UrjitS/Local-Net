@@ -80,6 +80,16 @@ add_executable(routing_tests
 
 target_include_directories(routing_tests PRIVATE ${CMAKE_SOURCE_DIR}/routing)
 
+# Test binary for mesh routing unit tests
+add_executable(mesh_routing_tests
+        routing/routing.c
+        utils/utils.c
+        protocol/protocol.c
+        tests/test_mesh_routing.c
+)
+
+target_include_directories(mesh_routing_tests PRIVATE ${CMAKE_SOURCE_DIR}/routing)
+
 # Test binary for encryption unit tests
 add_executable(encryption_tests
         encryption/encryption.c

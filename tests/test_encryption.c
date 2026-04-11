@@ -4,20 +4,14 @@
 #include <assert.h>
 #include "encryption.h"
 
-#define TEST_PASS() printf("  PASS\n")
-#define TEST_FAIL(msg) do { printf("  FAIL: %s\n", msg); failures++; } while(0)
-
-static int failures = 0;
-
 static void test_crypto_init(void) {
-    printf("[TEST] crypto_init...");
+    printf("Testing test_crypto_init\n");
     assert(crypto_init() == 0);
-    TEST_PASS();
 }
 
-// Test: X25519 key generation
+// Test X25519 key generation
 static void test_ecdh_generate_keypair(void) {
-    printf("[TEST] ecdh_generate_keypair");
+    printf("Testing test_ecdh_generate_keypair\n");
 
     uint8_t pub[X25519_KEY_SIZE], private_key[X25519_KEY_SIZE];
     assert(ecdh_generate_keypair(pub, private_key) == 0);
@@ -31,13 +25,11 @@ static void test_ecdh_generate_keypair(void) {
     uint8_t pub2[X25519_KEY_SIZE], private_key2[X25519_KEY_SIZE];
     assert(ecdh_generate_keypair(pub2, private_key2) == 0);
     assert(memcmp(pub, pub2, X25519_KEY_SIZE) != 0);
-
-    TEST_PASS();
 }
 
-// Test: X25519 shared secret agreement
+// Test shared secret agreement
 static void test_ecdh_shared_secret(void) {
-    printf("[TEST] ecdh_compute_shared_secret");
+    printf("Testing test_ecdh_shared_secret\n");
 
     uint8_t pub_a[X25519_KEY_SIZE], private_key_a[X25519_KEY_SIZE];
     uint8_t pub_b[X25519_KEY_SIZE], private_key_b[X25519_KEY_SIZE];
@@ -55,13 +47,11 @@ static void test_ecdh_shared_secret(void) {
     // Shared secret should not be all zeros
     const uint8_t zeros[X25519_SHARED_SECRET_SIZE] = {0};
     assert(memcmp(secret_a, zeros, X25519_SHARED_SECRET_SIZE) != 0);
-
-    TEST_PASS();
 }
 
-// Test: HKDF-SHA256
+
 static void test_hkdf_sha256(void) {
-    printf("[TEST] hkdf_sha256");
+    printf("Testing test_hkdf_sha256\n");
 
     uint8_t ikm[32];
     memset(ikm, 0x0b, 32);
@@ -85,13 +75,11 @@ static void test_hkdf_sha256(void) {
     uint8_t okm_short[16];
     assert(hkdf_sha256(ikm, 32, (const uint8_t *)info1, strlen(info1), okm_short, 16) == 0);
     assert(memcmp(okm1, okm_short, 16) == 0); // First 16 bytes should match
-
-    TEST_PASS();
 }
 
-// Test: AES-128-CTR encrypt/decrypt
+// Test AES-128-CTR encrypt/decrypt
 static void test_aes128_ctr(void) {
-    printf("[TEST] aes128_ctr_crypt");
+    printf("Testing test_aes128_ctr\n");
 
     const uint8_t key[AES128_KEY_SIZE] = {
         0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
@@ -118,13 +106,11 @@ static void test_aes128_ctr(void) {
 
     // Should recover original plaintext 
     assert(memcmp(plaintext, decrypted, len) == 0);
-
-    TEST_PASS();
 }
 
-// Test: HMAC-SHA256
+// Test HMAC-SHA256
 static void test_hmac_sha256(void) {
-    printf("[TEST] hmac_sha256");
+    printf("Testing test_hmac_sha256\n");
 
     const uint8_t key[16] = {0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b, 0x0b};
     const char * data = "test data for HMAC";
@@ -141,13 +127,11 @@ static void test_hmac_sha256(void) {
     const char *data2 = "different data";
     assert(hmac_sha256(key, 16, (const uint8_t *)data2, strlen(data2), mac2) == 0);
     assert(memcmp(mac1, mac2, HMAC_SHA256_SIZE) != 0);
-
-    TEST_PASS();
 }
 
-// Test: HMAC-SHA256 truncated
+// Test HMAC-SHA256 truncated
 static void test_hmac_sha256_truncated(void) {
-    printf("[TEST] hmac_sha256_truncated");
+    printf("Testing test_hmac_sha256_truncated\n");
 
     const uint8_t key[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
     const char * data = "test data";
@@ -159,13 +143,11 @@ static void test_hmac_sha256_truncated(void) {
 
     // Truncated should be first 12 bytes of full 
     assert(memcmp(full, trunc, HMAC_SHA256_TRUNCATED_SIZE) == 0);
-
-    TEST_PASS();
 }
 
-// Test: Session Manager init/cleanup
+// Test Session Manager init/cleanup
 static void test_session_manager_init(void) {
-    printf("[TEST] session_manager_init");
+    printf("Testing test_session_manager_init\n");
 
     struct session_manager mgr;
     assert(session_manager_init(&mgr, 0x12345678) == 0);
@@ -174,13 +156,11 @@ static void test_session_manager_init(void) {
     assert(session_get_count(&mgr) == 0);
 
     session_manager_cleanup(&mgr);
-
-    TEST_PASS();
 }
 
-// Test: Key exchange handshake between two nodes
+// Test Key exchange handshake between two nodes
 static void test_key_exchange_handshake(void) {
-    printf("[TEST] key_exchange_handshake");
+    printf("Testing test_key_exchange_handshake\n");
 
     const uint32_t node_a_id = 0xAAAA0001;
     const uint32_t node_b_id = 0xBBBB0002;
@@ -190,7 +170,7 @@ static void test_key_exchange_handshake(void) {
     assert(session_manager_init(&mgr_b, node_b_id) == 0);
 
     // Step 1: Node A initiates key exchange 
-    struct key_exchange_ext_message kex_request;
+    struct key_exchange_ext_message kex_request = {0};
     assert(initiate_key_exchange(&mgr_a, node_b_id, &kex_request) == 0);
 
     // Verify session A is PENDING 
@@ -199,7 +179,7 @@ static void test_key_exchange_handshake(void) {
     assert(sess_a->state == SESSION_STATE_PENDING);
 
     // Step 2: Node B receives request and generates response 
-    struct key_exchange_ext_message kex_response;
+    struct key_exchange_ext_message kex_response = {0};
     int need_response = 0;
     assert(handle_key_exchange(&mgr_b, node_a_id, &kex_request, &kex_response, &need_response) == 0);
     assert(need_response == 1);
@@ -225,7 +205,6 @@ static void test_key_exchange_handshake(void) {
     assert(get_oob_code(&mgr_b, node_a_id, code_b) == 0);
     assert(memcmp(code_a, code_b, OOB_COMMITMENT_SIZE) == 0);
 
-    printf("OOB code: %02X%02X%02X%02X ", code_a[0], code_a[1], code_a[2], code_a[3]);
 
     // Step 5: Verify OOB on both sides 
     assert(verify_oob_code(&mgr_a, node_b_id, code_a) == ENC_SUCCESS);
@@ -239,19 +218,17 @@ static void test_key_exchange_handshake(void) {
 
     session_manager_cleanup(&mgr_a);
     session_manager_cleanup(&mgr_b);
-
-    TEST_PASS();
 }
 
-// Test: OOB mismatch tears down session
+// Test OOB mismatch tears down session
 static void test_oob_mismatch(void) {
-    printf("[TEST] oob_mismatch");
+    printf("Testing test_oob_mismatch\n");
 
     struct session_manager mgr_a, mgr_b;
     assert(session_manager_init(&mgr_a, 0x1111) == 0);
     assert(session_manager_init(&mgr_b, 0x2222) == 0);
 
-    struct key_exchange_ext_message kex_req, kex_resp;
+    struct key_exchange_ext_message kex_req = {0}, kex_resp = {0};
     assert(initiate_key_exchange(&mgr_a, 0x2222, &kex_req) == 0);
 
     int need_resp = 0;
@@ -268,13 +245,11 @@ static void test_oob_mismatch(void) {
 
     session_manager_cleanup(&mgr_a);
     session_manager_cleanup(&mgr_b);
-
-    TEST_PASS();
 }
 
-// Test: Frame encrypt and decrypt roundtrip
+// Test Frame encrypt and decrypt roundtrip
 static void test_frame_encrypt_decrypt(void) {
-    printf("[TEST] frame_encrypt_decrypt");
+    printf("Testing test_frame_encrypt_decrypt\n");
 
     const uint32_t node_a_id = 0xAAAA1111;
     const uint32_t node_b_id = 0xBBBB2222;
@@ -284,7 +259,7 @@ static void test_frame_encrypt_decrypt(void) {
     assert(session_manager_init(&mgr_b, node_b_id) == 0);
 
     // Complete key exchange 
-    struct key_exchange_ext_message kex_req, kex_resp;
+    struct key_exchange_ext_message kex_req = {0}, kex_resp = {0};
     assert(initiate_key_exchange(&mgr_a, node_b_id, &kex_req) == 0);
     int need_resp = 0;
     assert(handle_key_exchange(&mgr_b, node_a_id, &kex_req, &kex_resp, &need_resp) == 0);
@@ -314,7 +289,7 @@ static void test_frame_encrypt_decrypt(void) {
     // Encrypt on Node A 
     uint8_t * ciphertext = NULL;
     size_t ciphertext_len = 0;
-    struct security_block sec;
+    struct security_block sec = {0};
 
     const int enc_result = encrypt_frame(&mgr_a, node_b_id, header_data, 8, network_data, 8,
                                     (const uint8_t *)message, msg_len,
@@ -344,13 +319,11 @@ static void test_frame_encrypt_decrypt(void) {
 
     session_manager_cleanup(&mgr_a);
     session_manager_cleanup(&mgr_b);
-
-    TEST_PASS();
 }
 
-// Test: Replay protection
+// Test Replay protection
 static void test_replay_protection(void) {
-    printf("[TEST] replay_protection");
+    printf("Testing test_replay_protection\n");
 
     const uint32_t node_a_id = 0xAAAA3333;
     const uint32_t node_b_id = 0xBBBB4444;
@@ -360,7 +333,7 @@ static void test_replay_protection(void) {
     assert(session_manager_init(&mgr_b, node_b_id) == 0);
 
     // Complete key exchange and verify OOB 
-    struct key_exchange_ext_message kex_req, kex_resp;
+    struct key_exchange_ext_message kex_req = {0}, kex_resp = {0};
     assert(initiate_key_exchange(&mgr_a, node_b_id, &kex_req) == 0);
     int need_resp = 0;
     assert(handle_key_exchange(&mgr_b, node_a_id, &kex_req, &kex_resp, &need_resp) == 0);
@@ -372,12 +345,12 @@ static void test_replay_protection(void) {
 
     const uint8_t header_data[8] = {0};
     const uint8_t network_data[8] = {0};
-    const char *msg = "Test replay";
+    const char * msg = "Test replay";
 
     // Encrypt a frame 
     uint8_t * ct = NULL;
     size_t ct_len = 0;
-    struct security_block sec;
+    struct security_block sec = {0};
     assert(encrypt_frame(&mgr_a, node_b_id, header_data, 8, network_data, 8, (const uint8_t *)msg, strlen(msg), &ct, &ct_len, &sec) == ENC_SUCCESS);
 
     // First decrypt should succeed 
@@ -395,13 +368,11 @@ static void test_replay_protection(void) {
     free(ct);
     session_manager_cleanup(&mgr_a);
     session_manager_cleanup(&mgr_b);
-
-    TEST_PASS();
 }
 
-// Test: MAC tamper detection
+// Test MAC tamper detection
 static void test_mac_tamper_detection(void) {
-    printf("[TEST] mac_tamper_detection");
+    printf("Testing test_mac_tamper_detection\n");
 
     const uint32_t node_a_id = 0xAAAA5555;
     const uint32_t node_b_id = 0xBBBB6666;
@@ -410,7 +381,7 @@ static void test_mac_tamper_detection(void) {
     assert(session_manager_init(&mgr_a, node_a_id) == 0);
     assert(session_manager_init(&mgr_b, node_b_id) == 0);
 
-    struct key_exchange_ext_message kex_req, kex_resp;
+    struct key_exchange_ext_message kex_req = {0}, kex_resp = {0};
     assert(initiate_key_exchange(&mgr_a, node_b_id, &kex_req) == 0);
     int need_resp = 0;
     assert(handle_key_exchange(&mgr_b, node_a_id, &kex_req, &kex_resp, &need_resp) == 0);
@@ -425,13 +396,13 @@ static void test_mac_tamper_detection(void) {
 
     uint8_t * ct = NULL;
     size_t ct_len = 0;
-    struct security_block sec;
+    struct security_block sec = {0};
     assert(encrypt_frame(&mgr_a, node_b_id, header_data, 8, network_data, 8, (const uint8_t *)"test", 4, &ct, &ct_len, &sec) == ENC_SUCCESS);
 
     // Tamper with MAC 
     sec.mac[0] ^= 0xFF;
 
-    uint8_t *pt = NULL;
+    uint8_t * pt = NULL;
     size_t pt_len = 0;
     const int result = decrypt_frame(&mgr_b, node_a_id, header_data, 8, network_data, 8, ct, ct_len, &sec, &pt, &pt_len);
     assert(result == ENC_ERROR_MAC_FAILURE);
@@ -439,13 +410,11 @@ static void test_mac_tamper_detection(void) {
     free(ct);
     session_manager_cleanup(&mgr_a);
     session_manager_cleanup(&mgr_b);
-
-    TEST_PASS();
 }
 
-// Test: Session needs rotation
+// Test Session needs rotation
 static void test_session_rotation(void) {
-    printf("[TEST] session_needs_rotation");
+    printf("Testing test_session_rotation\n");
 
     struct encryption_session session = {0};
     session.state = SESSION_STATE_OOB_VERIFIED;
@@ -467,13 +436,11 @@ static void test_session_rotation(void) {
     // MAC failure threshold 
     session.mac_failure_count = MAC_FAILURE_THRESHOLD;
     assert(session_needs_rotation(&session, 1001) == 1);
-
-    TEST_PASS();
 }
 
-// Test: Static OOB token
+// Test Static OOB token
 static void test_static_oob(void) {
-    printf("[TEST] static_oob_token");
+    printf("Testing test_static_oob\n");
 
     const uint32_t node_a_id = 0xAAAA7777;
     const uint32_t node_b_id = 0xBBBB8888;
@@ -488,7 +455,7 @@ static void test_static_oob(void) {
     assert(session_manager_set_static_oob_token(&mgr_b, token, sizeof(token)) == 0);
 
     // Complete handshake 
-    struct key_exchange_ext_message kex_req, kex_resp;
+    struct key_exchange_ext_message kex_req = {0}, kex_resp = {0};
     assert(initiate_key_exchange(&mgr_a, node_b_id, &kex_req) == 0);
     int need_resp = 0;
     assert(handle_key_exchange(&mgr_b, node_a_id, &kex_req, &kex_resp, &need_resp) == 0);
@@ -508,10 +475,10 @@ static void test_static_oob(void) {
     const uint8_t network_data[8] = {0};
     uint8_t * ct = NULL;
     size_t ct_len = 0;
-    struct security_block sec;
+    struct security_block sec = {0};
     assert(encrypt_frame(&mgr_a, node_b_id, header_data, 8, network_data, 8, (const uint8_t *)"secret", 6, &ct, &ct_len, &sec) == ENC_SUCCESS);
 
-    uint8_t *pt = NULL;
+    uint8_t * pt = NULL;
     size_t pt_len = 0;
     assert(decrypt_frame(&mgr_b, node_a_id, header_data, 8, network_data, 8, ct, ct_len, &sec, &pt, &pt_len) == ENC_SUCCESS);
     assert(memcmp(pt, "secret", 6) == 0);
@@ -520,13 +487,11 @@ static void test_static_oob(void) {
     free(pt);
     session_manager_cleanup(&mgr_a);
     session_manager_cleanup(&mgr_b);
-
-    TEST_PASS();
 }
 
-// Test: Static OOB mismatch between nodes
+// Test Static OOB mismatch between nodes
 static void test_static_oob_mismatch(void) {
-    printf("[TEST] static_oob_mismatch");
+    printf("Testing test_static_oob_mismatch\n");
 
     const uint32_t node_a_id = 0xCCCC1111;
     const uint32_t node_b_id = 0xDDDD2222;
@@ -541,7 +506,7 @@ static void test_static_oob_mismatch(void) {
     assert(session_manager_set_static_oob_token(&mgr_a, token_a, sizeof(token_a)) == 0);
     assert(session_manager_set_static_oob_token(&mgr_b, token_b, sizeof(token_b)) == 0);
 
-    struct key_exchange_ext_message kex_req, kex_resp;
+    struct key_exchange_ext_message kex_req = {0}, kex_resp = {0};
     assert(initiate_key_exchange(&mgr_a, node_b_id, &kex_req) == 0);
     int need_resp = 0;
     assert(handle_key_exchange(&mgr_b, node_a_id, &kex_req, &kex_resp, &need_resp) == 0);
@@ -555,13 +520,11 @@ static void test_static_oob_mismatch(void) {
 
     session_manager_cleanup(&mgr_a);
     session_manager_cleanup(&mgr_b);
-
-    TEST_PASS();
 }
 
-// Test: Key exchange ext serialization
+// Test Key exchange ext serialization
 static void test_kex_serialization(void) {
-    printf("[TEST] kex_ext_serialization");
+    printf("Testing test_kex_serialization\n");
 
     struct key_exchange_ext_message kex = {0};
     memset(kex.public_key, 0xAB, X25519_KEY_SIZE);
@@ -584,38 +547,35 @@ static void test_kex_serialization(void) {
     assert(parsed.kex_type == kex.kex_type);
     assert(parsed.supported_oob_methods == kex.supported_oob_methods);
     assert(parsed.preferred_oob_method == kex.preferred_oob_method);
-
-    TEST_PASS();
 }
 
-// Test: Unverified session blocks data
+// Test Unverified session blocks data
 static void test_unverified_session_blocks_data(void) {
-    printf("[TEST] unverified_session_blocks_data");
+    printf("Testing test_unverified_session_blocks_data\n");
 
     struct session_manager mgr;
     assert(session_manager_init(&mgr, 0x1111) == 0);
 
     // Create a session but don't complete OOB 
-    struct key_exchange_ext_message kex_req;
+    struct key_exchange_ext_message kex_req = {0};
     assert(initiate_key_exchange(&mgr, 0x2222, &kex_req) == 0);
 
     const uint8_t hdr[8] = {0};
     // Try to encrypt - should fail (session is PENDING, not OOB_VERIFIED)
     const uint8_t net[8] = {0};
-    uint8_t *ct = NULL;
+    uint8_t * ct = NULL;
     size_t ct_len = 0;
-    struct security_block sec;
+    struct security_block sec = {0};
 
-    int result = encrypt_frame(&mgr, 0x2222, hdr, 8, net, 8, (const uint8_t *)"test", 4, &ct, &ct_len, &sec);
+    const int result = encrypt_frame(&mgr, 0x2222, hdr, 8, net, 8, (const uint8_t *)"test", 4, &ct, &ct_len, &sec);
     assert(result == ENC_ERROR_SESSION_UNVERIFIED);
 
     session_manager_cleanup(&mgr);
-    TEST_PASS();
 }
 
-// Test: Multiple sequential frames
+// Test Multiple sequential frames
 static void test_multiple_frames(void) {
-    printf("[TEST] multiple_frames");
+    printf("Testing test_multiple_frames\n");
 
     const uint32_t node_a = 0xAAAA9999;
     const uint32_t node_b = 0xBBBB0000;
@@ -625,7 +585,7 @@ static void test_multiple_frames(void) {
     assert(session_manager_init(&mgr_b, node_b) == 0);
 
     // Full handshake + OOB 
-    struct key_exchange_ext_message kex_req, kex_resp;
+    struct key_exchange_ext_message kex_req = {0}, kex_resp = {0};
     assert(initiate_key_exchange(&mgr_a, node_b, &kex_req) == 0);
     int nr = 0;
     assert(handle_key_exchange(&mgr_b, node_a, &kex_req, &kex_resp, &nr) == 0);
@@ -643,14 +603,14 @@ static void test_multiple_frames(void) {
         char msg[32];
         snprintf(msg, sizeof(msg), "Message #%d", i);
 
-        uint8_t *ct = NULL;
+        uint8_t * ct = NULL;
         size_t ct_len = 0;
-        struct security_block sec;
+        struct security_block sec = {0};
         assert(encrypt_frame(&mgr_a, node_b, hdr, 8, net, 8, (const uint8_t *)msg, strlen(msg), &ct, &ct_len, &sec) == ENC_SUCCESS);
 
         assert(sec.frame_counter == (uint32_t)i);
 
-        uint8_t *pt = NULL;
+        uint8_t * pt = NULL;
         size_t pt_len = 0;
         assert(decrypt_frame(&mgr_b, node_a, hdr, 8, net, 8, ct, ct_len, &sec, &pt, &pt_len) == ENC_SUCCESS);
         assert(memcmp(pt, msg, strlen(msg)) == 0);
@@ -667,13 +627,9 @@ static void test_multiple_frames(void) {
 
     session_manager_cleanup(&mgr_a);
     session_manager_cleanup(&mgr_b);
-
-    TEST_PASS();
 }
 
 int main(void) {
-    printf("LocalNet E2E Encryption Tests\n");
-
     test_crypto_init();
     test_ecdh_generate_keypair();
     test_ecdh_shared_secret();
@@ -694,12 +650,8 @@ int main(void) {
     test_unverified_session_blocks_data();
     test_multiple_frames();
 
-    if (failures == 0) {
-        printf("All tests PASSED!\n");
-    } else {
-        printf("%d test(s) FAILED!\n", failures);
-    }
+    printf("ALL ENCRYPTION TESTS PASSED\n");
 
-    return failures;
+    return EXIT_SUCCESS;
 }
 
