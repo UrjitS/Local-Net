@@ -97,3 +97,47 @@ int validate_destination_id(const uint32_t dest_id, const uint32_t self_id) {
     return 0;
 }
 
+size_t get_memory_usage(void) {
+    FILE* file = fopen("/proc/self/status", "r");
+    if (!file) {
+        return 0;
+    }
+
+    char line[128];
+    size_t rss_kb = 0;
+
+    while (fgets(line, sizeof(line), file)) {
+        if (strncmp(line, "VmRSS:", 6) == 0) {
+            sscanf(line, "VmRSS: %zu kB", &rss_kb);
+            break;
+        }
+    }
+
+    fclose(file);
+    return rss_kb * 1024;
+}
+
+double get_cpu_usage(void) {
+    static struct timespec last_cpu;
+    static struct timespec last_sys;
+
+    struct timespec cpu;
+    struct timespec sys;
+
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &cpu);
+    clock_gettime(CLOCK_MONOTONIC, &sys);
+
+    if (last_sys.tv_sec == 0) {
+        last_cpu = cpu;
+        last_sys = sys;
+        return 0.0;
+    }
+
+    const double cpu_diff = (cpu.tv_sec - last_cpu.tv_sec) + (cpu.tv_nsec - last_cpu.tv_nsec) / 1e9;
+    const double sys_diff = (sys.tv_sec - last_sys.tv_sec) + (sys.tv_nsec - last_sys.tv_nsec) / 1e9;
+
+    last_cpu = cpu;
+    last_sys = sys;
+
+    return sys_diff > 0.0 ? (cpu_diff / sys_diff) * 100.0 : 0.0;
+}

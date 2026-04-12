@@ -47,4 +47,16 @@ int parse_node_id(const char * input, uint32_t * node_id);
 */
 int validate_destination_id(uint32_t dest_id, uint32_t self_id);
 
+/**
+ * Get current memory usage (RSS) in bytes
+ * @return Memory usage in bytes, or 0 on error
+ */
+size_t get_memory_usage(void);
+
+/**
+ * Get current CPU usage as a percentage of a single core
+ * @return CPU usage percentage
+ */
+double get_cpu_usage(void);
+
 #endif //LOCALNET_UTILS_H

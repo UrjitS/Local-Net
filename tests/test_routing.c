@@ -1,3 +1,4 @@
+#include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -966,6 +967,7 @@ int main() {
 
     printf("ALL ROUTING TESTS PASSED\n");
 
+    printf("\nMemory usage during test: %zu bytes\n", get_memory_usage());
     return EXIT_SUCCESS;
 }
 

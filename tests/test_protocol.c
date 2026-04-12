@@ -1,3 +1,4 @@
+#include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -245,6 +246,7 @@ int main(void) {
 
     printf("ALL PROTOCOL TESTS PASSED\n");
 
+    printf("\nMemory usage during test: %zu bytes\n", get_memory_usage());
     return EXIT_SUCCESS;
 }
 

@@ -38,6 +38,7 @@ static void cmd_initiate_key_exchange(void);
 static void cmd_show_sessions(void);
 static void cmd_verify_oob(void);
 static void cmd_set_static_oob(void);
+static void cmd_show_memory(void);
 static void cmd_show_help(void);
 static void cmd_quit(void);
 
@@ -52,6 +53,7 @@ static const menu_command_t g_menu_commands[] = {
     { "8", "Show encryption sessions",    cmd_show_sessions },
     { "9", "Verify OOB code",            cmd_verify_oob },
     { "0", "Set static OOB token",       cmd_set_static_oob },
+    { "m", "Show memory usage",           cmd_show_memory },
     { "h", "Show help",                   cmd_show_help },
     { "q", "Quit",                        cmd_quit },
     { NULL, NULL, NULL }
@@ -463,6 +465,17 @@ static void cmd_set_static_oob(void) {
     }
 }
 
+static void cmd_show_memory(void) {
+    const size_t mem = get_memory_usage();
+    printf("\n");
+    printf("--------------------------------------------------------------------\n");
+    printf("MEMORY USAGE\n");
+    printf("--------------------------------------------------------------------\n");
+    printf("\t Current RSS: %.2f MB (%zu bytes)\n", (double)mem / (1024.0 * 1024.0), mem);
+    printf("--------------------------------------------------------------------\n");
+    printf("\n");
+}
+
 static void cmd_show_help(void) {
     printf("\n");
     printf("--------------------------------------------------------------------\n");
@@ -579,6 +592,27 @@ static void on_node_disconnected(const uint32_t node_id) {
         const guint connected = ble_get_connected_count(g_ble_manager);
         log_info(TAG, "Remaining connected Nodes: %d", connected);
     }
+}
+
+static gboolean stats_timer_callback(gpointer data) {
+    (void)data;
+
+    FILE *f = fopen("system_stats.log", "a");
+    if (f) {
+        const time_t now = time(NULL);
+        char time_str[64];
+        const struct tm *t = localtime(&now);
+        strftime(time_str, sizeof(time_str) - 1, "%Y-%m-%d %H:%M:%S", t);
+
+        const size_t mem = get_memory_usage();
+        const double cpu = get_cpu_usage();
+
+        fprintf(f, "[%s] Memory: %.2f MB (%zu bytes), CPU: %.2f%%\n",
+                time_str, (double)mem / (1024.0 * 1024.0), mem, cpu);
+        fclose(f);
+    }
+
+    return TRUE;
 }
 
 static void on_data_received(const uint32_t sender_id, const uint8_t * data, const size_t len) {
@@ -908,6 +942,10 @@ int main(const int argc, char * argv[]) {
     log_info(TAG, "Advertising as: LocalNet-%08X", g_device_id);
     log_info(TAG, "Initiating Scanning");
 
+    // Start stats logging
+    get_cpu_usage(); // Initialize baseline
+    const guint stats_watch_id = g_timeout_add_seconds(30, stats_timer_callback, NULL);
+
     // Set up stdin input handling for menu commands
     GIOChannel * stdin_channel = g_io_channel_unix_new(STDIN_FILENO);
     g_io_channel_set_encoding(stdin_channel, NULL, NULL);
@@ -919,6 +957,7 @@ int main(const int argc, char * argv[]) {
 
     // Cleanup stdin channel
     g_source_remove(stdin_watch_id);
+    g_source_remove(stats_watch_id);
     g_io_channel_unref(stdin_channel);
 
     // Cleanup

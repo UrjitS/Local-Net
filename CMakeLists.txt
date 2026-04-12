@@ -67,6 +67,7 @@ target_link_directories(LocalNet PRIVATE ${GLIB_LIBRARY_DIRS})
 add_executable(protocol_tests
         protocol/protocol.c
         tests/test_protocol.c
+        utils/utils.c
 )
 
 target_include_directories(protocol_tests PRIVATE ${CMAKE_SOURCE_DIR}/protocol)
@@ -94,6 +95,7 @@ target_include_directories(mesh_routing_tests PRIVATE ${CMAKE_SOURCE_DIR}/routin
 add_executable(encryption_tests
         encryption/encryption.c
         tests/test_encryption.c
+        utils/utils.c
 )
 
 target_include_directories(encryption_tests PRIVATE
